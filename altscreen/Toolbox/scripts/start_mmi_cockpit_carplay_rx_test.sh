@@ -148,7 +148,7 @@ fail(){ msg=$1; rollback; echo "FAIL: $msg" >&2; exit 1; }
 
 mount_app_rw || fail "cannot mount /mnt/app writable"
 APP_RW=1
-mkdir -p "$STATE" || fail "cannot create runtime state directory"
+[ -d "$STATE" ] || mkdir -p "$STATE" || fail "cannot create runtime state directory"
 touch "$START_PENDING" || fail "cannot mark START pending"
 START_PENDING_CREATED=1
 touch "$ENABLED" || fail "cannot enable BaseVideo3 boot demand"

@@ -7,6 +7,7 @@
 #   SKIP_BUILD=1 ./scripts/build_sd.sh                           # reuse build/ artifacts
 #   SD=/Volumes/SD32 STOCK_JAR=MU1329-base.jar ./scripts/build_sd.sh   # also sync onto the card
 #   ALTSCREEN_FULL_FPS=0 ./scripts/build_sd.sh                   # stock AltScreen video binaries (15 fps)
+#   CN_PROFILE=1 PRIVATE_LOGO_DIR=local_assets/mixed16 ...        # CN P1002 + private random splash pool
 #
 # Inputs:  altscreen/   the AltScreen SD tree (scripts, mirror sidecar, universal preload,
 #                       GEM menu, MIB2 Toolbox) with @CARPLAY_JAR_SIZE@/@CARPLAY_JAR_CKSUM@
@@ -29,6 +30,18 @@ JAR="$PROJECT_DIR/build/carplay_hook.jar"
 RGI_DIR=Toolbox/carplay_alt_screen/rgi
 JAR_DEST=Toolbox/carplay_alt_screen/hmi/carplay_hook-basevideo3.jar
 PINNED_SCRIPTS="install_mmi_cockpit_carplay_rx.sh start_mmi_cockpit_carplay_rx_test.sh status_mmi_cockpit_carplay_test.sh"
+case "${CN_PROFILE:-0}" in 0|1) ;; *) echo 'ERROR: CN_PROFILE must be 0 or 1'; exit 2 ;; esac
+CN_PACKAGE_FINISHED=0
+cn_build_exit(){
+    result=$?
+    if [ "${CN_PROFILE:-0}" = 1 ] && [ "$CN_PACKAGE_FINISHED" != 1 ] &&
+       [ -f "$OUT/Toolbox/carplay_alt_screen/CN_P1002_BUILD.txt" ]; then
+        printf '%s\n' 'target_train=MHI2Q_CN_AUG22_P1002' 'build_status=INCOMPLETE' \
+            > "$OUT/Toolbox/carplay_alt_screen/CN_P1002_BUILD.txt"
+    fi
+    return "$result"
+}
+trap cn_build_exit EXIT
 
 [ -d "$SRC/Toolbox" ] || { echo "ERROR: $SRC is not an AltScreen SD tree"; exit 1; }
 
@@ -36,6 +49,15 @@ if [ "${SKIP_BUILD:-0}" != 1 ]; then
     STOCK_JAR="${STOCK_JAR:-}" bash "$PROJECT_DIR/scripts/build_java.sh"
     bash "$PROJECT_DIR/scripts/build_hook.sh"
     bash "$PROJECT_DIR/scripts/build_renderers.sh"
+    if [ "${CN_PROFILE:-0}" = 1 ]; then
+        python3 "$PROJECT_DIR/tools/audit_cn_java.py" --stock "${STOCK_JAR:?CN build requires STOCK_JAR}" \
+            --java "${CN_JAVA:-java}" --javac "${CN_JAVAC:-javac}"
+        if [ -n "${CN_LLVM_BIN:-}" ]; then
+            python3 "$PROJECT_DIR/tools/verify_cn_native.py" --stock-dir "${CN_STOCK_DIR:?CN build requires CN_STOCK_DIR}" --llvm-bin "$CN_LLVM_BIN"
+        else
+            python3 "$PROJECT_DIR/tools/verify_cn_native.py" --stock-dir "${CN_STOCK_DIR:?CN build requires CN_STOCK_DIR}"
+        fi
+    fi
 fi
 for f in "$JAR" "$PROJECT_DIR/build/libcarplay_hook.so" "$PROJECT_DIR/build/maneuver_render"; do
     [ -s "$f" ] || { echo "ERROR: missing build artifact $f"; exit 1; }
@@ -46,6 +68,10 @@ case "$OUT" in "$PROJECT_DIR"/build/*) rm -rf "$OUT" ;; *) [ ! -e "$OUT" ] || { 
 mkdir -p "$OUT"
 (cd "$SRC" && tar --exclude=.DS_Store --exclude='._*' -cf - .) | (cd "$OUT" && tar -xf -)
 rm -f "$OUT/SHA256SUMS-SD.list"
+if [ "${CN_PROFILE:-0}" = 1 ]; then
+    printf '%s\n' 'target_train=MHI2Q_CN_AUG22_P1002' 'build_status=INCOMPLETE' \
+        > "$OUT/Toolbox/carplay_alt_screen/CN_P1002_BUILD.txt"
+fi
 
 # AltScreen reads back only every second decoded cluster frame and its mirror sidecar
 # polls every 20 ms with a fixed 33 ms period (30 fps in, 15-22 fps on the VC);
@@ -69,6 +95,18 @@ else
     ALTS_FPS="stock (15 fps)"
 fi
 
+if [ "${CN_PROFILE:-0}" = 1 ]; then
+    # Reapply only the car-verified CN geometry/phone-request changes to the
+    # upstream universal hook. The patcher preserves the selected FPS mode.
+    python3 "$PROJECT_DIR/tools/patch_cn_altscreen.py" "$OUT/$ALTS_LIB" "$OUT/$ALTS_LIB"
+fi
+
+if [ -n "${PRIVATE_LOGO_DIR:-}" ]; then
+    python3 "$PROJECT_DIR/tools/stage_private_logos.py" \
+        --source "$PRIVATE_LOGO_DIR" --release "$OUT/$ALTS_MIRROR_DIR" \
+        > "$PROJECT_DIR/build/private-logo-stage.json"
+fi
+
 # RGI native half, installed by Toolbox/scripts/rgi_companion.sh from AltScreen INSTALL.
 mkdir -p "$OUT/$RGI_DIR"
 cp "$PROJECT_DIR/build/libcarplay_hook.so" "$PROJECT_DIR/build/maneuver_render" \
@@ -82,6 +120,7 @@ chmod 755 "$OUT/$RGI_DIR"/*.sh "$OUT/$RGI_DIR/maneuver_render" "$OUT/$RGI_DIR/li
 
 # The one HMI JAR (RGI Java + the AltScreen ctx-81 video context). AltScreen's INSTALL,
 # START and STATUS refuse any JAR whose POSIX cksum/size differ from the pinned pair.
+mkdir -p "$(dirname "$OUT/$JAR_DEST")"
 cp "$JAR" "$OUT/$JAR_DEST"
 set -- $(cksum < "$JAR")
 JAR_CKSUM=$1 JAR_SIZE=$2
@@ -96,6 +135,10 @@ if grep -rl '@CARPLAY_JAR_' "$OUT/Toolbox" >/dev/null; then
     echo "ERROR: unresolved JAR placeholders:"; grep -rl '@CARPLAY_JAR_' "$OUT/Toolbox"; exit 1
 fi
 
+if [ "${CN_PROFILE:-0}" = 1 ]; then
+    python3 "$PROJECT_DIR/tools/stage_cn_profile.py" --build "$PROJECT_DIR/build" --sd "$OUT"
+fi
+
 # Everything the head unit runs must parse as sh (QNX /bin/sh is pdksh).
 for f in "$OUT"/Toolbox/scripts/*.sh "$OUT/$RGI_DIR"/*.sh "$OUT"/Toolbox/carplay_alt_screen/mirror_display/release/*.sh; do
     sh -n "$f" || { echo "ERROR: shell syntax: $f"; exit 1; }
@@ -103,13 +146,26 @@ done
 
 # SD integrity list (sha256sum -c SHA256SUMS-SD.txt on the card).
 if command -v sha256sum >/dev/null 2>&1; then SHA="sha256sum"; else SHA="shasum -a 256"; fi
-( cd "$OUT"
-  while IFS= read -r f; do
-      [ -n "$f" ] || continue
-      [ -f "$f" ] || { echo "ERROR: SHA256SUMS-SD.list names a missing file: $f" >&2; exit 1; }
-      $SHA "$f"
-  done < "$SRC/SHA256SUMS-SD.list" > SHA256SUMS-SD.txt
-  $SHA -c SHA256SUMS-SD.txt >/dev/null )
+# Verify the maintained required-file list, then include every staged file so
+# optional local assets and generated profile metadata cannot escape readback.
+while IFS= read -r f; do
+    [ -z "$f" ] || [ -f "$OUT/$f" ] || { echo "ERROR: required file missing: $f" >&2; exit 1; }
+done < "$SRC/SHA256SUMS-SD.list"
+python3 - "$OUT" "${CN_PROFILE:-0}" <<'PY'
+import hashlib, pathlib, sys
+out = pathlib.Path(sys.argv[1])
+if sys.argv[2] == "1":
+    profile = out / "Toolbox/carplay_alt_screen/CN_P1002_BUILD.txt"
+    text = profile.read_text()
+    if "build_status=VERIFIED_PENDING_PACKAGE\n" not in text:
+        raise SystemExit("ERROR: CN profile has not passed build evidence checks")
+    profile.write_text(text.replace("build_status=VERIFIED_PENDING_PACKAGE\n", "build_status=PASS\n"))
+manifest = out / "SHA256SUMS-SD.txt"
+files = sorted(p for p in out.rglob("*") if p.is_file() and p != manifest)
+manifest.write_text("".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.relative_to(out).as_posix()}\n" for p in files))
+PY
+(cd "$OUT" && $SHA -c SHA256SUMS-SD.txt >/dev/null)
+CN_PACKAGE_FINISHED=1
 
 echo "  jar: $JAR_DEST size=$JAR_SIZE cksum=$JAR_CKSUM"
 echo "  altscreen video: $ALTS_FPS"

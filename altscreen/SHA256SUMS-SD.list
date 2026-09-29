@@ -9,6 +9,7 @@ Toolbox/carplay_alt_screen/mirror_display/release/carplay-alt111-mirror-display
 Toolbox/carplay_alt_screen/mirror_display/release/libscreen_id_bridge.so
 Toolbox/carplay_alt_screen/mirror_display/release/logo.rgba
 Toolbox/carplay_alt_screen/mirror_display/release/start_vehicle.sh
+Toolbox/carplay_alt_screen/mirror_display/release/select_logo.sh
 Toolbox/carplay_alt_screen/mirror_display/release/stop_vehicle.sh
 Toolbox/carplay_alt_screen/mirror_display/release/watermark.rgba
 Toolbox/carplay_alt_screen/rgi/carplay_child.json
@@ -37,6 +38,7 @@ Toolbox/scripts/cluster_layout_default.sh
 Toolbox/scripts/cluster_layout_noeta.sh
 Toolbox/scripts/cluster_layout_right.sh
 Toolbox/scripts/cluster_layout_top.sh
+Toolbox/scripts/cn_migration_preflight.sh
 Toolbox/scripts/dump_cluster_h264.sh
 Toolbox/scripts/finish_mmi_cockpit_carplay_test.sh
 Toolbox/scripts/force_start_mmi_cockpit_carplay_rx_test.sh

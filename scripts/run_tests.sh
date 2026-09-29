@@ -5,6 +5,13 @@
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
+# Strict C99 hides POSIX clocks and BSD socket helpers on glibc by default.
+# These are test-host flags only; the QNX production builds retain their flags.
+if [ "$(uname)" = Linux ]; then
+    # Signal handlers intentionally make best-effort write(2) calls; newer
+    # glibc/GCC adds warn_unused_result unlike the original macOS test host.
+    cc(){ command cc -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE -D_GNU_SOURCE -Wno-error=unused-result "$@"; }
+fi
 OUT=$(mktemp -d)
 trap 'rm -rf "$OUT"' EXIT
 if [ "$(uname)" = Darwin ]; then DEAD_STRIP=-Wl,-dead_strip; else DEAD_STRIP=-Wl,--gc-sections; fi

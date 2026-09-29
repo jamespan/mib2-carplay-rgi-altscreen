@@ -32,6 +32,7 @@ fi
 [ -n "$VOLUME" ] || { echo "FAIL: no Toolbox SD card discovered"; exit 1; }
 CONTROLLER="$VOLUME/Toolbox/scripts/altscreen_chain_test.sh"
 RGI_COMPANION="$VOLUME/Toolbox/scripts/rgi_companion.sh"
+CN_PREFLIGHT="$VOLUME/Toolbox/scripts/cn_migration_preflight.sh"
 MIRROR_RELEASE="$VOLUME/Toolbox/carplay_alt_screen/mirror_display/release"
 MIRROR_INFO="$MIRROR_RELEASE/BUILD_INFO.txt"
 JAR_SOURCE="$VOLUME/Toolbox/carplay_alt_screen/hmi/carplay_hook-basevideo3.jar"
@@ -83,6 +84,12 @@ jar_valid "$JAR_SOURCE" || {
     exit 1
 }
 
+# Run before controller INSTALL: its rollback restores ORIGINAL, so a CN
+# migration must not start over the older custom JAR/zoom installation.
+[ -f "$CN_PREFLIGHT" ] || { echo 'FAIL: CN migration preflight missing'; exit 1; }
+ALTSCREEN_SD_VOLUME="$VOLUME" /bin/sh "$CN_PREFLIGHT" || exit 1
+ALTSCREEN_SD_VOLUME="$VOLUME" /bin/sh "$RGI_COMPANION" preflight || exit 1
+
 echo "PACKAGE_MODE=CARPLAY_PRIVATE111_DIRECT_DISPLAY_V2"
 echo "NATIVE_SOURCE=private111_ScreenStreamProcessData h264_shm=/carplay111_h264"
 echo "DECODER_BACKEND=stock_omx_screen_linearized_shm decoded_shm=/carplay111_decoded"
@@ -123,7 +130,7 @@ MIRROR_RUNTIME="$DEVICE_ROOT/mnt/app/root/carplay-altscreen/bin/mirror"
 
 mount_app_rw || fail "cannot mount /mnt/app writable"
 APP_RW=1
-mkdir -p "$JAR_TARGET_DIR" || fail "cannot create HMI JAR directory"
+[ -d "$JAR_TARGET_DIR" ] || mkdir -p "$JAR_TARGET_DIR" || fail "cannot create HMI JAR directory"
 rm -f "$TMP" 2>/dev/null || true
 cp "$JAR_SOURCE" "$TMP" || fail "cannot stage Java80 HMI JAR"
 chmod 644 "$TMP" || fail "cannot chmod Java80 HMI JAR"

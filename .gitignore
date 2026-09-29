@@ -7,12 +7,16 @@
 /build/*
 !/build/.gitkeep
 /local_logs/
+/local_firmware/
 /log/
 tools/loader_preview/loader_preview
 
 # Phone-side captures: sysdiagnose tarballs and log archives are hundreds of MB
 # and contain the owner's device logs. Keep them local.
 /logs/
+
+# Owner-supplied splash images and source inventory stay private.
+/local_assets/
 
 # Obsidian MCP transaction journal + per-user workspace state
 .obsidian-mcp/

@@ -18,11 +18,11 @@ set -e
 [ "$#" -le 1 ] || { echo "usage: ./scripts/build_renderers.sh [grid]"; exit 2; }
 [ "$#" -eq 0 ] || [ "$1" = "grid" ] || { echo "usage: ./scripts/build_renderers.sh [grid]"; exit 2; }
 
-IMG=qnx65-armv7-toolchain:latest
+IMG="${QNX_IMAGE:-qnx65-armv7-toolchain:latest}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 GRID=""
-[ "$1" = "grid" ] && GRID="-DCR_DEBUG_GRID"
+[ "${1:-}" = "grid" ] && GRID="-DCR_DEBUG_GRID"
 
 if ! docker image inspect "$IMG" >/dev/null 2>&1; then
     echo "ERROR: docker image '$IMG' not found."
@@ -31,8 +31,13 @@ if ! docker image inspect "$IMG" >/dev/null 2>&1; then
 fi
 
 echo "=== Cluster Renderer Build (Docker $IMG) ==="
+IMAGE_ID=$(docker image inspect --format '{{.Id}}' "$IMG")
+mkdir -p "$PROJECT_DIR/build/native-evidence"
+printf '%s\n' "$IMAGE_ID" > "$PROJECT_DIR/build/native-evidence/renderer-image.txt"
+python3 "$PROJECT_DIR/tools/native_source_manifest.py" renderer > "$PROJECT_DIR/build/native-evidence/renderer-inputs-before.json"
 
-docker run --rm --platform=linux/amd64 -v "$PROJECT_DIR":/src "$IMG" bash -c '
+docker run --rm --network=none --platform=linux/amd64 \
+  -v "$PROJECT_DIR":/src:ro -v "$PROJECT_DIR/build":/src/build "$IMAGE_ID" bash -c '
   set -e
   export PATH=/opt/qnx650/host/linux/x86/usr/bin:$PATH
   export QNX_HOST=/opt/qnx650/host/linux/x86 QNX_TARGET=/opt/qnx650/target/qnx6
@@ -84,6 +89,8 @@ docker run --rm --platform=linux/amd64 -v "$PROJECT_DIR":/src "$IMG" bash -c '
     [ "$m" = ARM ] && [ "$e" = 0 ] || exit 1
   done
 '
+python3 "$PROJECT_DIR/tools/native_source_manifest.py" renderer > "$PROJECT_DIR/build/native-evidence/renderer-inputs-after.json"
+cmp "$PROJECT_DIR/build/native-evidence/renderer-inputs-before.json" "$PROJECT_DIR/build/native-evidence/renderer-inputs-after.json"
 
 echo ""
 echo "Done:"

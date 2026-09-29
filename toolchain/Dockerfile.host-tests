@@ -1,0 +1,7 @@
+# Host-only tests: no QNX binaries are executed in this image.
+FROM eclipse-temurin:8-jdk-jammy
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential zlib1g-dev libgles2-mesa-dev python3 mksh binutils unzip \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /bin/mksh /bin/sh
+WORKDIR /src

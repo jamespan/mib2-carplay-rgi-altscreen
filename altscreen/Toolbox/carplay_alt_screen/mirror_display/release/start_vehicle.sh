@@ -30,9 +30,8 @@ elif [ -x "$ROOT/carplay-alt111-mirror-display" ]; then
 else
   BIN="$ROOT/release/carplay-alt111-mirror-display"
 fi
-ALT111_LOGO_ASSET="${ALT111_LOGO_ASSET:-$ROOT/logo.rgba}"
 ALT111_WATERMARK_ASSET="${ALT111_WATERMARK_ASSET:-$ROOT/watermark.rgba}"
-export ALT111_LOGO_ASSET ALT111_WATERMARK_ASSET
+export ALT111_WATERMARK_ASSET
 
 TMP_ROOT="${ALT111_MIRROR_TMP_ROOT:-/tmp}"
 PIDFILE="$TMP_ROOT/MMI-Cockpit-Carplay.mirror.pid"
@@ -118,6 +117,12 @@ if [ -f "$WATCH_PIDFILE" ]; then
   rm -f "$WATCH_PIDFILE"
 fi
 
+# Do this after the already-running check so a redundant START consumes no draw.
+# Abnormal recovery keeps the inherited asset; a real stream teardown clears
+# only an automatic choice at the two next-session launch sites below.
+. "$ROOT/select_logo.sh"
+select_startup_logo "$ROOT" "$TMP_ROOT"
+
 rm -f "$READY" "$BASE_READY"
 if [ -n "$RESTART_REASON" ]; then
   {
@@ -134,6 +139,8 @@ fi
   echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-<unset>}"
   echo "HOOK_LOG=$HOOK_LOG"
   echo "GATE_TOKEN=$GATE_TOKEN"
+  echo "STARTUP_LOGO_ASSET=$ALT111_LOGO_ASSET selection_scope=private111_session random_source=$ALT111_LOGO_PICK_SOURCE"
+  echo "STARTUP_LOGO_RANDOM_DETAIL=$ALT111_LOGO_PICK_DETAIL"
   echo "SCREEN_CONTEXT_POLICY=JAVA80_ONLY native_context_writer=0"
   echo "READY_POLICY=destination_first_present_only base_ready=$BASE_READY"
   echo "DIRECT111_SOURCE=ScreenStreamProcessData+H264_SHM decoded_shm=/carplay111_decoded"
@@ -248,6 +255,7 @@ if [ "$SINK_TEST_GRID_MODE" = "0" ]; then
           ALT111_MIRROR_RESTART_REASON=private111_session_end \
           ALT111_MIRROR_RESTART_COUNT=0 \
           ALT111_RECOVER_CURRENT_SESSION=0 \
+          ALT111_LOGO_ASSET="$ALT111_LOGO_FIXED_ASSET" \
             /bin/sh "$ROOT/start_vehicle.sh" >>"$AUTORESTART_LOG" 2>&1 &
         fi
         exit 0
@@ -295,6 +303,7 @@ if [ "$SINK_TEST_GRID_MODE" = "0" ]; then
           ALT111_MIRROR_RESTART_REASON=private111_session_end \
           ALT111_MIRROR_RESTART_COUNT=0 \
           ALT111_RECOVER_CURRENT_SESSION=0 \
+          ALT111_LOGO_ASSET="$ALT111_LOGO_FIXED_ASSET" \
             /bin/sh "$ROOT/start_vehicle.sh" >>"$AUTORESTART_LOG" 2>&1 &
         else
           echo "LIFECYCLE_WATCH=NO_RESTART demand_present=$([ -f "$DEMAND" ] && echo 1 || echo 0) explicit_stop=$([ -f "$STOP_GUARD" ] && echo 1 || echo 0)"

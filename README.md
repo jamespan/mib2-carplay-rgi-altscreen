@@ -1,5 +1,10 @@
 # MHI2Q CarPlay Virtual Cockpit Integration (AltScreen + Route Guidance)
 
+This fork also has a **CN P1002 integration profile**, built against the vehicle's
+own stock Java interfaces, plus an optional private random splash pool.
+See [中文：CN 构建与迁移说明](README_CN.md). The new CN combination still requires
+vehicle validation; do not overwrite an existing custom installation in place.
+
 **English** | [Українська](README_UA.md)
 
 Unified CarPlay patch set for Audi MHI2Q infotainment with Audi Virtual Cockpit.  

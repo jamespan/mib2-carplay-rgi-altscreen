@@ -165,7 +165,7 @@ remove_files(){
     rmdir "$HOOKS" 2>/dev/null || true
 }
 
-cmd_install(){
+preflight(){
     VOLUME=$(find_volume) || { echo "FAIL: no SD card with Toolbox/carplay_alt_screen/rgi"; exit 1; }
     SRC=$VOLUME/Toolbox/carplay_alt_screen/rgi
     AWKF=$VOLUME/Toolbox/scripts/altscreen_preload.awk
@@ -176,10 +176,15 @@ cmd_install(){
     for name in carplay_startup.sh carplay_monitor.sh carplay_processes.sh carplay_cleanup.sh; do
         sh -n "$SRC/$name" || { echo "FAIL: RGI script syntax: $name"; exit 1; }
     done
+    echo 'RGI_PREFLIGHT=PASS'
+}
+
+cmd_install(){
+    preflight
 
     mount_app_rw || fail "cannot mount /mnt/app writable"
     mount_system_rw || fail "cannot mount /mnt/system writable"
-    mkdir -p "$HOOKS" || fail "cannot create $HOOKS"
+    [ -d "$HOOKS" ] || mkdir -p "$HOOKS" || fail "cannot create $HOOKS"
     for name in $FILES; do
         dst=$HOOKS/$name; tmp=$dst.rgi-new.$$
         cp "$SRC/$name" "$tmp" && cmp -s "$SRC/$name" "$tmp" && chmod "$(mode_for "$name")" "$tmp" &&
@@ -204,7 +209,8 @@ cmd_remove(){
 }
 
 case "$ACTION" in
+    preflight) preflight ;;
     install) cmd_install ;;
     remove)  cmd_remove ;;
-    *) echo "usage: rgi_companion.sh install|remove"; exit 2 ;;
+    *) echo "usage: rgi_companion.sh preflight|install|remove"; exit 2 ;;
 esac
