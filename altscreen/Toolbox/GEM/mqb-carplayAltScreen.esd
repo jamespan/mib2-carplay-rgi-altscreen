@@ -21,6 +21,14 @@ script
    label   "STATUS"
 
 script
+   value   sys 1 0x0100 "/eso/hmi/engdefs/scripts/mqb/store_carplay_logs.sh"
+   label   "STORE LOGS (keep CarPlay running)"
+
+script
+   value   sys 1 0x0100 "/eso/hmi/engdefs/scripts/mqb/carplay_verbose_off.sh"
+   label   "CARPLAY VERBOSE OFF"
+
+script
    value   sys 1 0x0100 "/eso/hmi/engdefs/scripts/mqb/finish_mmi_cockpit_carplay_test.sh"
    label   "STORE LOGS + RESTORE"
 

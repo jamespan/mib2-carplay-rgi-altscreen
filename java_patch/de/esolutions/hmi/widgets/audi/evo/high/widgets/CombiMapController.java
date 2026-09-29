@@ -154,6 +154,9 @@ public class CombiMapController extends DisplayControllerEvo implements NaviMoKo
             return;
         }
         boolean smallStage = this.currentViewSizeSmall();
+        // Cache map-video geometry even when the view-size did not change: skin switches
+        // can replace the OEM Layout while keeping the same fullscreen/smallscreen choice.
+        com.luka.carplay.cluster.AltScreenVideoLayout.updateLayout(layout, smallStage);
         int now = smallStage ? 1 : 0;
         if (!force && now == this.appliedViewSizeSmall) {
             return;   // unchanged: no duplicate read/publish/reposition

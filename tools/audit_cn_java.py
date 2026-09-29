@@ -22,6 +22,7 @@ TESTS = [
     ("DistanceBargraphChainTest", True), ("KomoGraphicsStateTest", True),
     ("ManeuverParityTest", True), ("RendererViewportTest", True),
     ("ClusterKdkSyncTest", True), ("AltScreenContextTest", True),
+    ("AltScreenVideoLayoutTest", True),
     ("ClusterKdkBapChainTest", True), ("ClusterKdkRendererLifecycleTest", True),
     ("com.luka.carplay.rgd.LaneGuidanceTransportTest", True),
     ("com.luka.carplay.rgd.LaneGuidanceLifecycleTest", True),

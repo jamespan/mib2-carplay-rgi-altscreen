@@ -124,6 +124,27 @@ fi
 select_startup_logo "$ROOT" "$TMP_ROOT"
 
 rm -f "$READY" "$BASE_READY"
+# A previous session may have moved displayable 3 for Sport SMALL. Reset before
+# a new sidecar can draw its logo. Cold boot has no used marker and no old offset;
+# do not wait for a Java CarPlay session merely to start the waiting sidecar.
+if [ -f "$TMP_ROOT/carplay-video-position.used" ]; then
+  RESET_REQUEST="$TMP_ROOT/carplay-video-reset.request"
+  RESET_ACK="$TMP_ROOT/carplay-video-reset.ack"
+  RESET_TOKEN="$$:$RESTART_COUNT"
+  rm -f "$RESET_ACK"
+  printf '%s\n' "$RESET_TOKEN" > "$RESET_REQUEST.$$"
+  mv "$RESET_REQUEST.$$" "$RESET_REQUEST"
+  RESET_WAIT=0
+  while [ "$(cat "$RESET_ACK" 2>/dev/null || true)" != "$RESET_TOKEN" ]; do
+    if [ "$RESET_WAIT" -ge 60 ] || [ -f "$STOP_GUARD" ]; then
+      echo "VIDEO_POSITION_RESET=FAIL no_java_ack logo_not_started"
+      exit 3
+    fi
+    sleep 1
+    RESET_WAIT=$((RESET_WAIT + 1))
+  done
+  echo "VIDEO_POSITION_RESET=PASS displayable=3 x=0 y=0"
+fi
 if [ -n "$RESTART_REASON" ]; then
   {
     echo ""

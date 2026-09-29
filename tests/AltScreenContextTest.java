@@ -62,6 +62,7 @@ public final class AltScreenContextTest implements InvocationHandler {
         File active = new File(dir, "active"), ready = new File(dir, "ready");
         set(AltScreenVideo.class, "activePath", active.getPath());
         set(AltScreenVideo.class, "readyPath", ready.getPath());
+        set(com.luka.carplay.cluster.AltScreenVideoLayout.class, "tmpRoot", dir.getPath());
 
         AltScreenContextTest capture = new AltScreenContextTest();
         Object dm = Proxy.newProxyInstance(AltScreenContextTest.class.getClassLoader(),
@@ -114,7 +115,20 @@ public final class AltScreenContextTest implements InvocationHandler {
         Thread.sleep(400);
         check(capture.current == 74 && !ScreenModule.isAltScreenVideo(), "stale markers ignored while disconnected");
 
-        active.delete(); ready.delete(); dir.delete();
+        // The persistent worker must keep servicing a pre-logo reset after disconnect,
+        // even though no session/context change wakes LOCK again.
+        File request = new File(dir, "carplay-video-reset.request");
+        File ack = new File(dir, "carplay-video-reset.ack");
+        java.io.FileOutputStream resetOut = new java.io.FileOutputStream(request);
+        resetOut.write("disconnected-launcher\n".getBytes("ISO-8859-1")); resetOut.close();
+        long resetDeadline = System.currentTimeMillis() + 2000;
+        while (!ack.exists() && System.currentTimeMillis() < resetDeadline) Thread.sleep(20);
+        check(ack.exists(), "disconnected worker acknowledges next-logo reset without wake event");
+        java.io.BufferedReader resetIn = new java.io.BufferedReader(new java.io.FileReader(ack));
+        check("disconnected-launcher".equals(resetIn.readLine()), "reset acknowledgement token");
+        resetIn.close();
+        active.delete(); ready.delete(); request.delete(); ack.delete();
+        new File(dir, "carplay-video-position.used").delete(); dir.delete();
         System.out.println("AltScreenContextTest: marker gating, 72 bounce, nav/video priority, video loss, drift, disconnect PASS");
     }
 }

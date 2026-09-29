@@ -4,16 +4,17 @@
 在 jamespan 的 fork 中继续维护。目标车机为 `MHI2Q_CN_AUG22_P1002`。
 
 本分支保留上游的 RGI、AltScreen、上下文 80/81、方向盘缩放、布局菜单和
-30 FPS 实现。**本地编译和测试通过不等于已经实车验证；该组合是首轮试验版。**
+30 FPS 实现。上一版已有有线高德 RGI 实车结果；本次 Sport 视频位置修复待实车验证。
+**本地编译和测试通过不等于实车验证通过。**
 
 ## 与此前定制包的关系
 
 | 项目 | 本分支处理 |
 |---|---|
 | 开屏图 | 当前使用项目自带 `logo.rgba`；16 张私有随机包保留为可选构建输入，默认不打包 |
-| 高德导航自车右偏 | 当前关闭旧 safeArea 修正，先验证上游布局选择器；保留重复手机请求标记修复，可用 `CN_MAP_SAFEAREA=1` 恢复居中补丁 |
-| Sport 图层 | 使用上游的新 Java 图层管理；不复制旧版 Sport 像素平移控制器，需重新验证小图位置 |
-| 导航道路、ETA、箭头和车道 | 使用上游 RGI 链路；手机/高德是否提供完整数据仍需实车采集 |
+| 高德导航自车右偏 | 关闭旧 safeArea 修正；上游 maneuver card on top 已让本车大图居中；保留重复手机请求标记修复 |
+| Sport 图层 | 在上游单个 ScreenModule worker 中让视频层跟随 OEM 小图位置，回大图复位；开屏保持原点，待实车验证 |
+| 导航道路、ETA、箭头和车道 | 有线已有路名、转向、距离及时间的实车结果；JYBOX-29 无线缺少 RGI，需对照详细日志定位，车道完整性也待验证 |
 | 灰底栏试验 | 不带入 v36 的功能支持撤回、路名清空和罗盘隐藏试验；新基线用底栏显示手机导航信息 |
 | 滚轮缩放 | 使用上游命令总线，不保留旧独立 CPZ2 控制器；不承诺解决 JYBOX-29 不转发缩放 |
 | 无水印 | 保持上游透明水印处理 |
@@ -70,15 +71,48 @@ Java/native 审核报告通过，且与实际文件 SHA256 一致。
 SD 写入与弹出是独立操作；构建脚本默认只生成本地包。旧版 v36 的 SD 不能仅凭
 本仓库已经编译就当成已更新。相同/后续 CN 版本重装也先 RESTORE，再重启安装。
 
-## 第一轮实车检查
+## 本轮实车检查
 
 先用有线 CarPlay 做基线：连接和重新连接观察开屏；进入高德导航，检查道路/
 距离/时间/转向提示；切换 Classic、Sport，检查地图位置、缩放及箭头遮挡；
 结束导航和断开 CarPlay，确认原车地图恢复。连接期间和断开后分别 STORE LOGS。
 之后再对照 JYBOX-29 无线、播客音频和缩放，避免把无线盒子限制当成 CN 编译问题。
 
-高德数据是否完整、CN renderer 在真实 Screen/EGL 上的加载、新 Sport 小图位置、
-30 FPS 与无线音频的共同负载都是待验证项。不要只凭菜单 INSTALL=PASS 判断 RGI 已通。
+有线 RGI 的箭头、距离和时间已有实车照片，但高德数据完整性、新 Sport 小图位置、
+30 FPS 与无线音频的共同负载仍是待验证项。不要只凭菜单 INSTALL=PASS 判断 RGI 已通。
+
+Sport 修复将 displayable 3 跟随 OEM `Layout` 的小图偏移（本车为 `-476, 0`），
+不修改手机地图安全区。只有 sidecar 首个真实视频帧成功、ready 记录为 `direct-display`
+并与当前 PID 文件一致时才允许偏移。sidecar 仅在首帧更新该标记，不逐帧写文件。
+下一会话显示开屏前由同一 Java worker 确认复位；拿不到确认时记录失败，不带着旧偏移显示开屏。
+
+## 单独采集 RGI / Sport 日志
+
+将新版脚本和菜单放到 SD 后执行 **Update Toolbox**，退出再进入绿菜单。
+新增 **STORE LOGS (keep CarPlay running)** 直接使用更新后的 Toolbox 脚本，
+不需要重新 INSTALL / START，不会卸载、断开 CarPlay 或重启 MMI。
+原来的 **STORE LOGS + RESTORE** 仍会在采集后恢复原车；仅排查问题时不要选它。
+
+1. 先点一次 **STORE LOGS**：立即保留现有日志，并在 MMX 的 RAM 中创建
+   `/tmp/carplay_verbose`，让下一次连接记录 INFO 级协商和 RGI 状态。
+2. 断开再连接**有线 CarPlay**，在高德开始导航，切换大图和 Sport，点
+   **STORE LOGS** 保存第一份；记下这份 `COLLECT_DIR` 对应有线。
+3. 改用 **JYBOX-29 无线**，同一地图 App 开始导航并复现问题，再点
+   **STORE LOGS** 保存第二份；两轮采集之间不要重启 MMI，避免 RAM 日志丢失。
+4. 结束后可点 **CARPLAY VERBOSE OFF**，再重连 CarPlay 恢复默认日志级别。
+   它只删除本采集器创建的临时标志；已有持久 `/mnt/app/carplay_verbose`
+   会单独提示并保留。临时标志本身也会随重启消失。
+
+每次结果保存在 SD 的 `MMI-Cockpit-Carplay/logs/rgi/collect_N/`，编号递增，
+旧目录不覆盖。保存 hook、Java、renderer、wrapper、AltScreen 的有界日志及轮转，
+ready / ctx / geom / layout 状态、两份运行配置和有超时限制的进程/加载库快照。
+只采集指定文件，不复制共享内存、视频环、原厂固件、封面图片或 core dump。
+`info.txt` 记录缺失、截断和探测失败，**没有文件不等于没有协议数据**。
+`PASS` 仅表示采集完成，不表示 RGI 或 Sport 已通过实车验证。
+
+有线、无线比较重点是：Identify 是否声明 RGI、是否发出 `0x5200`、是否收到
+`0x5201/2/4`，以及 Java 是否进入 `RG activate`。默认 WARN/ERROR 日志不能
+用于证明这些 INFO 级事件没有发生。
 
 实现与证据入口：[CN Java 适配](docs/cn-java-port.md)、[私有开屏](docs/private-splash.md)、
 [CN 原生接口与几何](docs/cn-p1002-native.md)、

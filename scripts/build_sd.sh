@@ -84,18 +84,23 @@ if [ "${ALTSCREEN_FULL_FPS:-1}" = 1 ]; then
     for f in "$ALTS_LIB" "$ALTS_MIRROR_DIR/carplay-alt111-mirror-display"; do
         python3 "$PROJECT_DIR/tools/patch_altscreen_fps.py" "$SRC/$f" "$OUT/$f" >/dev/null
     done
-    # Keep the sidecar's own checksum list true to what ships.
-    if command -v sha256sum >/dev/null 2>&1; then MSHA="sha256sum"; else MSHA="shasum -a 256"; fi
-    new_sum=$(cd "$OUT/$ALTS_MIRROR_DIR" && $MSHA carplay-alt111-mirror-display | cut -d' ' -f1)
-    sed -e "s/^[0-9a-f]\{64\}  carplay-alt111-mirror-display\$/$new_sum  carplay-alt111-mirror-display/" \
-        "$OUT/$ALTS_MIRROR_DIR/SHA256SUMS" > "$OUT/$ALTS_MIRROR_DIR/SHA256SUMS.tmp"
-    mv "$OUT/$ALTS_MIRROR_DIR/SHA256SUMS.tmp" "$OUT/$ALTS_MIRROR_DIR/SHA256SUMS"
-    (cd "$OUT/$ALTS_MIRROR_DIR" && $MSHA -c SHA256SUMS >/dev/null) \
-        || { echo "ERROR: mirror SHA256SUMS does not match the patched sidecar"; exit 1; }
     ALTS_FPS="30 fps (every frame read back, 4 ms sidecar poll)"
 else
     ALTS_FPS="stock (15 fps)"
 fi
+
+# Sport positioning may begin only after a real video frame, never at the logo.
+# This first-frame marker fix is independent of the optional FPS changes.
+python3 "$PROJECT_DIR/tools/patch_video_phase.py" \
+    "$OUT/$ALTS_MIRROR_DIR/carplay-alt111-mirror-display" \
+    "$OUT/$ALTS_MIRROR_DIR/carplay-alt111-mirror-display"
+if command -v sha256sum >/dev/null 2>&1; then MSHA="sha256sum"; else MSHA="shasum -a 256"; fi
+new_sum=$(cd "$OUT/$ALTS_MIRROR_DIR" && $MSHA carplay-alt111-mirror-display | cut -d' ' -f1)
+sed -e "s/^[0-9a-f]\{64\}  carplay-alt111-mirror-display\$/$new_sum  carplay-alt111-mirror-display/" \
+    "$OUT/$ALTS_MIRROR_DIR/SHA256SUMS" > "$OUT/$ALTS_MIRROR_DIR/SHA256SUMS.tmp"
+mv "$OUT/$ALTS_MIRROR_DIR/SHA256SUMS.tmp" "$OUT/$ALTS_MIRROR_DIR/SHA256SUMS"
+(cd "$OUT/$ALTS_MIRROR_DIR" && $MSHA -c SHA256SUMS >/dev/null) \
+    || { echo "ERROR: mirror SHA256SUMS does not match the patched sidecar"; exit 1; }
 
 if [ "${CN_PROFILE:-0}" = 1 ]; then
     # Keep repeated phone-request markers; geometry is separately switchable
@@ -188,4 +193,9 @@ if [ -n "${SD:-}" ]; then
     sync
     (cd "$SD" && $SHA -c SHA256SUMS-SD.txt >/dev/null) && echo "  card verified against SHA256SUMS-SD.txt"
 fi
-echo "Done. Next on the car: Toolbox -> Update Toolbox, then MMI-Cockpit-Carplay -> INSTALL, reboot, START, reboot."
+echo "Done. Next on the car: Toolbox -> Update Toolbox."
+if [ "${CN_PROFILE:-0}" = 1 ]; then
+    echo "  Existing CN install: STORE LOGS + RESTORE, full reboot, then INSTALL, full reboot, START, full reboot."
+else
+    echo "  MMI-Cockpit-Carplay -> INSTALL, reboot, START, reboot."
+fi

@@ -38,6 +38,7 @@ Toolbox/scripts/cluster_layout_default.sh
 Toolbox/scripts/cluster_layout_noeta.sh
 Toolbox/scripts/cluster_layout_right.sh
 Toolbox/scripts/cluster_layout_top.sh
+Toolbox/scripts/carplay_verbose_off.sh
 Toolbox/scripts/cn_migration_preflight.sh
 Toolbox/scripts/dump_cluster_h264.sh
 Toolbox/scripts/finish_mmi_cockpit_carplay_test.sh
@@ -47,6 +48,7 @@ Toolbox/scripts/rgi_companion.sh
 Toolbox/scripts/start_mmi_cockpit_carplay_rx_test.sh
 Toolbox/scripts/start_mmi_cockpit_carplay_test.sh
 Toolbox/scripts/status_mmi_cockpit_carplay_test.sh
+Toolbox/scripts/store_carplay_logs.sh
 Toolbox/scripts/stop_mmi_cockpit_carplay_test.sh
 Toolbox/scripts/update_toolbox.sh
 Toolbox/scripts/util_info.sh

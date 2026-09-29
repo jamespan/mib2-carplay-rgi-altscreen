@@ -14,6 +14,21 @@ if [ "$TESTING" = 1 ]; then
     DEVICE_ROOT=${ALTSCREEN_CHAIN_ROOT:-}
     case "$DEVICE_ROOT" in /tmp/*|/var/tmp/*) ;; *) echo "FAIL: invalid ALTSCREEN_CHAIN_ROOT"; exit 2 ;; esac
 fi
+# Collect with the newly updated GEM script BEFORE forwarding to an older app
+# runtime. This makes Update Toolbox sufficient to fix logging on an installed
+# version. The runtime handoff and its original RESTORE semantics stay intact.
+if [ "${CARPLAY_LOGS_ALREADY_STORED:-0}" != 1 ]; then
+    COLLECTOR="$SCRIPTDIR/store_carplay_logs.sh"
+    if [ -f "$COLLECTOR" ]; then
+        /bin/sh "$COLLECTOR"
+        STORE_RC=$?
+        [ "$STORE_RC" -eq 0 ] || echo "WARN: STORE LOGS incomplete (status $STORE_RC); restoring originals anyway"
+    else
+        echo "WARN: standalone collector missing; continuing original collection and restore"
+    fi
+    CARPLAY_LOGS_ALREADY_STORED=1
+    export CARPLAY_LOGS_ALREADY_STORED
+fi
 APP_BIN="$DEVICE_ROOT/mnt/app/root/carplay-altscreen/bin"
 APP_SELF="$APP_BIN/finish_mmi_cockpit_carplay_test.sh"
 # ALTSCREEN_FAKE_RECORD belongs only to the host dispatcher contract test.

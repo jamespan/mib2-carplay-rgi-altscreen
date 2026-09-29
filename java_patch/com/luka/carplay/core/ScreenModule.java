@@ -288,6 +288,9 @@ public final class ScreenModule implements Module {
         contextWriterThread = Thread.currentThread();
         while (true) {
             refreshAltScreenVideo();
+            IDisplayManager videoDm;
+            synchronized (LOCK) { videoDm = dm; }
+            com.luka.carplay.cluster.AltScreenVideoLayout.reconcile(videoDm, connected);
             int target; IDisplayManager d; boolean reconcileOnly = false;
             synchronized (LOCK) {
                 while (dm == null) {
@@ -297,10 +300,9 @@ public final class ScreenModule implements Module {
                     /* A connected session keeps a timed wait even on 74: the AltScreen markers are
                      * files, so the video edge is only seen by polling. */
                     try {
-                        if (desiredCtx >= CTX_CLUSTER || connected)
-                            LOCK.wait(CONTEXT_RECONCILE_MS);
-                        else
-                            LOCK.wait();
+                        // Keep servicing the next sidecar's pre-logo reset while disconnected.
+                        // No new thread, no DSI write unless the desired video position changes.
+                        LOCK.wait(CONTEXT_RECONCILE_MS);
                     } catch (InterruptedException e) { /* persistent worker */ }
                     if (dm == null || desiredCtx != currentCtx) continue;
                     if (desiredCtx < CTX_CLUSTER) continue;

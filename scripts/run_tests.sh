@@ -5,6 +5,8 @@
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
+python3 tests/test_video_phase.py
+python3 tests/test_video_reset_launcher.py
 # Strict C99 hides POSIX clocks and BSD socket helpers on glibc by default.
 # These are test-host flags only; the QNX production builds retain their flags.
 if [ "$(uname)" = Linux ]; then
@@ -102,6 +104,9 @@ sh scripts/test_install_dio.sh
 
 printf '%-32s ' logging_mib_test
 sh scripts/test_logging_mib.sh
+
+printf '%-32s ' logging_toolbox_test
+python3 tests/test_store_carplay_logs.py
 
 printf '%-32s ' supervisor_lifecycle_test
 sh scripts/test_supervisor_lifecycle.sh

@@ -11,6 +11,7 @@ from pathlib import Path
 from native_source_manifest import manifest as native_sources
 from java_build_manifest import verify_source_inputs
 from patch_cn_altscreen import CN_SHA, CN_MARKER_SHA, normalized
+from patch_video_phase import patch as patch_video_phase
 
 TRAIN = "MHI2Q_CN_AUG22_P1002"
 
@@ -27,6 +28,8 @@ def stage(build, sd, map_safearea=False):
     jar_hash = sha(base / "hmi/carplay_hook-basevideo3.jar")
     stock_hash = java["stock"]["sha256"]
     altscreen = base / "universal/libcarplay_altscreen.so"
+    mirror = base / "mirror_display/release/carplay-alt111-mirror-display"
+    mirror_bytes = mirror.read_bytes()
     expected_overlay = CN_SHA if map_safearea else CN_MARKER_SHA
     private_pool = (base / "mirror_display/release/logo_pool.count").is_file()
     verify_source_inputs(java)
@@ -44,6 +47,7 @@ def stage(build, sd, map_safearea=False):
         "native_hook": native.get("hook_sha256") == sha(base / "rgi/libcarplay_hook.so"),
         "native_renderer": native.get("renderer_sha256") == sha(base / "rgi/maneuver_render"),
         "altscreen_geometry_mode": hashlib.sha256(normalized(altscreen.read_bytes())).hexdigest() == expected_overlay,
+        "mirror_first_video_marker": patch_video_phase(mirror_bytes) == mirror_bytes,
     }
     failed = [key for key, ok in checks.items() if not ok]
     for target in ("hook", "renderer"):
@@ -59,6 +63,7 @@ def stage(build, sd, map_safearea=False):
         "vehicle_validated=NO\n"
         f"cn_map_safearea={int(map_safearea)}\nphone_request_marker=repeat\n"
         f"altscreen_hook_sha256={sha(altscreen)}\n"
+        f"mirror_sha256={sha(mirror)}\nmirror_first_video_marker=1\nsport_video_layout=1\n"
         f"startup_logo={'private_random_pool' if private_pool else 'upstream'}\n"
         f"jar_sha256={jar_hash}\nstock_jar_sha256={stock_hash}\n"
         f"rgi_hook_sha256={native['hook_sha256']}\n"
@@ -68,34 +73,40 @@ def stage(build, sd, map_safearea=False):
         "firmware": TRAIN, "build_id": java["build_id"],
         "checks": checks, "vehicle_validated": False,
         "cn_map_safearea": bool(map_safearea),
+        "sport_video_layout": True, "mirror_sha256": sha(mirror),
         "startup_logo": "private_random_pool" if private_pool else "upstream",
         "note": "Build/linkage checks passed; verify full functionality in the vehicle.",
     }, indent=2) + "\n")
     geometry_note = ("本包启用旧 CN safeArea 居中修正。" if map_safearea else
-        "本包关闭旧 CN safeArea 居中修正，先验证上游布局。")
+        "本包关闭旧 CN safeArea 居中修正，继续使用上游布局选择器。")
     logo_note = ("本包包含私有随机开屏；重新连接会重新抽取，随机可能重复。" if private_pool else
         "本包使用项目自带 logo.rgba，不包含私有随机开屏包。")
-    (sd / "SD_CARD_README.txt").write_text(f"""CN P1002 / AltScreen + RGI 首轮试验包
+    (sd / "SD_CARD_README.txt").write_text(f"""CN P1002 / AltScreen + RGI / Sport 位置修复试验包
 
 目标固件：MHI2Q_CN_AUG22_P1002。已做本地构建和接口检查，尚未实车验证。
 基线：https://github.com/jamespan/mib2-carplay-rgi-altscreen
 
-从旧定制包迁移：
-1. 先用旧包 STORE LOGS，再执行 RESTORE ORIGINAL，完整重启 MMI。
-2. 确认原车地图恢复，再复制本包到 SD。保留 MMI-Cockpit-Carplay/backup 和 logs。
+从已安装的 CN 版本更新：
+1. 保留 SD 的 MMI-Cockpit-Carplay/backup 和 logs。复制本包后执行 Update Toolbox，退出再进入绿菜单。
+2. 若当前已安装旧版，先 STORE LOGS + RESTORE，完整重启 MMI，确认原车地图恢复。
 3. 如果装过独立 NavActiveIgnore 补丁，先用原工具卸载并完整重启。
-4. Update Toolbox，退出再进入绿菜单。
-5. MMI-Cockpit-Carplay -> INSTALL，PASS 后完整重启 MMI。
-6. START，PASS 后再完整重启 MMI。
+4. MMI-Cockpit-Carplay -> INSTALL，PASS 后完整重启 MMI。
+5. START，PASS 后再完整重启 MMI。
 
 本包使用新 RGI/图层/缩放实现，不叠加旧 CPZ2 或 v36 灰框隐藏试验。
 {geometry_note}
-先测试 AltScreen default；若导航车标偏移，再试 maneuver card on top，每次切换后重新连接手机。
+安装后选择 maneuver card on top 并重新连接手机。该选项此前已让本车高德大图居中。
+本次增加 Sport 小图的视频位置同步，回大图/断开时复位；开屏阶段保持原点。
+此项修复需实车验证，不能把本地测试结果当作实车通过。
 手机请求标记修复和帧率设置不受 safeArea 开关影响。
 {logo_note}
-先用有线高德验证导航信息、Classic/Sport、滚轮缩放、断开恢复，再比较无线。
-连接时和断开后分别 STORE LOGS。新组合的高德数据完整性、Sport位置、30FPS和
-无线音频仍待验证。INSTALL=PASS 只表示安装成功，不表示完整导航链路已实测成功。
+有线 RGI 的箭头、距离、时间和路名已有实车照片；无线 JYBOX-29 缺少 RGI 的原因待采集。
+新增 STORE LOGS (keep CarPlay running) 只保存现场，不恢复或重启，Update Toolbox 后即可用。
+先点一次 STORE LOGS 开启临时详细日志，再重新连接有线高德导航，切换大图/Sport并再次 STORE LOGS。
+然后换无线并复现，再次 STORE LOGS。两轮之间不重启 MMI；记录有线/无线对应 collect_N 编号。
+目录：MMI-Cockpit-Carplay/logs/rgi/collect_N/。CARPLAY VERBOSE OFF 可关闭临时详细日志，重连后生效。
+STORE LOGS + RESTORE 仍会恢复原车，仅采集时不要选错。
+INSTALL=PASS 只表示安装成功，STORE_LOGS=PASS 只表示日志保存成功。
 
 SHA256SUMS-SD.txt 覆盖本包全部文件。不要复制未完成构建的目录。
 不会自动弹出 SD 卡。
