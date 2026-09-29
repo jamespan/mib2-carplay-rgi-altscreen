@@ -61,14 +61,14 @@ public final class ClusterKdkBapChainTest {
                 public Object invoke(Object p,Method m,Object[] a) {return null;}
             }));
         listener.setMapPresentation(true,false,false);
-        listener.setMapVisibility(false,true);capture.visible(100,0,100);
+        listener.setMapVisibility(false,true);capture.visible(100,0,0);
         listener.setMapVisibility(false,false);capture.visible(0,0,0);
         listener.setMapPresentation(false,false,false);capture.visible(0,0,0);
-        listener.setMapVisibility(false,true);capture.visible(100,100,0);
-        listener.setMapVisibility(false,true);capture.visible(100,100,0);
+        listener.setMapVisibility(false,true);capture.visible(100,0,0);
+        listener.setMapVisibility(false,true);capture.visible(100,0,0);
         // Internal stock changes bypass setMapVisibility(boolean, boolean).
         listener.setSupplementaryMapVisibility(false,true);capture.visible(0,0,0);
-        listener.setMapVisibility(false,true,true);capture.visible(100,100,0);
+        listener.setMapVisibility(false,true,true);capture.visible(100,0,0);
         ClusterKdkSyncTest.check(acknowledgements[0]==6 && acknowledgements[1]==2,"stock Status acknowledgements lost through RG gate");
         System.out.println("ClusterKdkBapChainTest: stock listener + RG gate, apply-before-Status, duplicate requests PASS");
     }

@@ -47,7 +47,7 @@ identify(){
     [ ! -e "$STATE/RESTORE_PENDING_REBOOT" ] || return 1
     jar="$ROOT/mnt/app/eso/hmi/lsd/jars/carplay_hook.jar"
     [ -f "$jar" ] && [ ! -L "$jar" ] || return 1
-    case "$(pair "$jar")" in '3113048449 254994'|'2924861228 257836') ;; *) return 1 ;; esac
+    case "$(pair "$jar")" in '3113048449 254994'|'2924861228 257836'|'1345467403 257879') ;; *) return 1 ;; esac
     case "$(pair "$RUNTIME/lib/libcarplay_altscreen.so")" in
         '978087763 251880'|'3113190410 251880') ;; *) return 1 ;; esac
     [ "$(pair "$HOOKS/libcarplay_hook.so")" = '4153509008 299838' ] || return 1

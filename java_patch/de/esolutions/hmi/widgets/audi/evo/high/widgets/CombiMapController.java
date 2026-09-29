@@ -257,6 +257,11 @@ public class CombiMapController extends DisplayControllerEvo implements NaviMoKo
         }
 
         this.positionKdkBackgrounds(dm, layout);
+        // Stock model deltas must not briefly reveal the shared silver backing before
+        // ClusterLayerController reapplies CarPlay layers. Keep kdkOpacity for restoration.
+        if (com.luka.carplay.core.ScreenModule.isConnected()) {
+            visibleBgOpacity = OPACITY_HIDDEN_FULL;
+        }
         dm.setOpacity(visibleBg, this.kombiTerminal, visibleBgOpacity);
         dm.setOpacity(hiddenBg,  this.kombiTerminal, OPACITY_HIDDEN_FULL);
         dm.setKDKVisible(kdk, this.kombiTerminal);

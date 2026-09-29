@@ -11,6 +11,7 @@
  *
  * CarPlay ownership/navigation gates eligibility; VC FctID44 gates actual visibility,
  * and VC FctID54 selects the KDK stage. The requested View mode never reveals a layer.
+ * CarPlay uses the maneuver renderer's alpha, with both stock backings hidden.
  * Stock hints are retained for restoration when CarPlay releases the cluster.  ctx 80/81 (ScreenModule) already removes the layers from composition on nav-off; the
  * opacity=0 here is the belt to that suspenders.
  *
@@ -290,7 +291,8 @@ public final class ClusterLayerController {
          * correct.  The offset is logged below for diagnosis, never applied. */
         boolean navActive = com.luka.carplay.core.ScreenModule.isNavActive();
         int carplayOpacity = carplayOwnsCluster && navActive ? permittedOpacity : 0;
-        logDecision(geometry, popup, carplayOpacity);
+        logDecision(geometry, popup, carplayOpacity,
+                    carplayOwnsCluster ? 0 : (stockVisible ? stockOpacity : 0));
         try {
             /* 101/102 are shared with the stock KDK renderer.  Restore the last stock model
              * when CarPlay releases terminal 1; otherwise a disconnect can leave
@@ -327,7 +329,9 @@ public final class ClusterLayerController {
             dm.setCropping(MANEUVER, terminal, cx, cy, cw, ch, dx, dy, cw, ch);
             dm.setOpacity(MANEUVER, terminal, carplayOpacity);
             dm.setPosition(backing, terminal, dx, dy);
-            dm.setOpacity(backing, terminal, carplayOpacity);
+            // The renderer already clears to transparent. 101/102 would add the silver
+            // stock card behind its arrow; keep both hidden for every CarPlay stage.
+            dm.setOpacity(backing, terminal, 0);
             dm.setOpacity(otherBacking, terminal, 0);
             errorLogged = false;
         } catch (Throwable t) {
@@ -342,7 +346,7 @@ public final class ClusterLayerController {
     /** One line per distinct geometry decision — the exact numbers written to the DM.
      *  Every Classic/Sport/singlescreen bug so far was a guess about which branch ran; this makes
      *  it readable in /tmp/carplay_java.log instead. Logged only when the tuple changes. */
-    private static void logDecision(Geometry g, boolean popup, int opacity) {
+    private static void logDecision(Geometry g, boolean popup, int opacity, int backingOpacity) {
         int cropX = popup ? g.popupCropX : g.inTubeCropX;
         int cropY = popup ? g.popupCropY : g.inTubeCropY;
         int cropW = popup ? g.popupCropW : g.inTubeCropW;
@@ -356,6 +360,7 @@ public final class ClusterLayerController {
             + " stage=" + (popup ? "popup" : "inTube")
             + " backing=" + (popup ? BACKING_POPUP : BACKING_SPORT)
             + " opacity=" + opacity
+            + " backingOpacity=" + backingOpacity
             + " src=(" + cropX + "," + cropY + " " + cropW + "x" + cropH + ")"
             + " dst=(" + dstX + "," + dstY + ")"
             + " smallStageOffset=(" + g.smallStageDX + "," + g.smallStageDY + ") [not applied]";

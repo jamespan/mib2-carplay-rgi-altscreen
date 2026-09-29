@@ -35,23 +35,26 @@ public final class ClusterKdkSyncTest implements InvocationHandler {
         field("navActive",Boolean.TRUE);
         ClusterLayerController.bind(dm,1);
         ClusterLayerController.onVcPresentation(true);
-        ClusterLayerController.onVcVisibility(true);capture.visible(100,0,100);
+        ClusterLayerController.onVcVisibility(true);capture.visible(100,0,0);
+        check(capture.cropWidth==210,"transparent popup keeps arrow crop");
         // View request is not the stage event; it must not expose the destination rectangle.
         field("smallScreenViewArea",Boolean.TRUE); // target: boolean view-area flag
-        ClusterLayerController.reapply();capture.visible(100,0,100);
+        ClusterLayerController.reapply();capture.visible(100,0,0);
         ClusterLayerController.onVcVisibility(false);capture.visible(0,0,0);
         check(ScreenModule.isNavActive(),"View fade must preserve active-route context");
         ClusterLayerController.onVcPresentation(false);capture.visible(0,0,0);
         check(capture.cropWidth==328,"VC midpoint moves hidden inTube crop");
-        ClusterLayerController.onVcVisibility(true);capture.visible(100,100,0);
-        // Duplicate callbacks and replays must not reveal the other backing.
-        ClusterLayerController.onVcPresentation(false);ClusterLayerController.reapply();capture.visible(100,100,0);
+        ClusterLayerController.onVcVisibility(true);capture.visible(100,0,0);
+        // Duplicate callbacks and replays must not reveal either backing.
+        ClusterLayerController.onVcPresentation(false);ClusterLayerController.reapply();capture.visible(100,0,0);
+        // A native model update still caches its state, but cannot expose its backing.
+        ClusterLayerController.apply(dm,1,null,true,75,false);capture.visible(100,0,0);
         ClusterLayerController.onVcVisibility(false);
         ClusterLayerController.onVcPresentation(true);capture.visible(0,0,0);
-        ClusterLayerController.onVcVisibility(true);capture.visible(100,0,100);
+        ClusterLayerController.onVcVisibility(true);capture.visible(100,0,0);
         ScreenModule.setNavActive(false);
         check(ScreenModule.isNavActive(),"route end retains context until VC hide");
-        ClusterLayerController.reapply();capture.visible(100,0,100);
+        ClusterLayerController.reapply();capture.visible(100,0,0);
         // A restarted route cancels pending release; later View hide cannot stop it.
         ScreenModule.setNavActive(true);
         ClusterLayerController.onVcVisibility(false);
@@ -64,7 +67,14 @@ public final class ClusterKdkSyncTest implements InvocationHandler {
         check(!ScreenModule.isNavActive(),"late visibility cannot resurrect ended route");
         // Release restores the stock hint-selected backing, not the CarPlay destination.
         field("connected",Boolean.FALSE); // target: no altscreen videoAvailable
+        ClusterLayerController.reapply();capture.visible(0,0,75);
         ClusterLayerController.apply(dm,1,null,true,100,true);capture.visible(0,100,0);
-        System.out.println("ClusterKdkSyncTest: VC hide/midpoint/show, route end/restart, stale show, stock restore PASS");
+        ClusterLayerController.apply(dm,1,null,true,40,false);capture.visible(0,0,40);
+        ClusterLayerController.apply(dm,1,null,false,100,false);capture.visible(0,0,0);
+        // Reconnecting clears even a previously visible stock card before RGI starts.
+        ClusterLayerController.apply(dm,1,null,true,100,false);capture.visible(0,0,100);
+        field("connected",Boolean.TRUE);ClusterLayerController.reapply();capture.visible(0,0,0);
+        field("navActive",Boolean.TRUE);ClusterLayerController.reapply();capture.visible(100,0,0);
+        System.out.println("ClusterKdkSyncTest: transparent stages, VC fade, route lifecycle, stock opacity restoration and reconnect PASS");
     }
 }

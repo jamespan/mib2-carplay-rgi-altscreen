@@ -64,6 +64,7 @@ def stage(build, sd, map_safearea=False):
         f"cn_map_safearea={int(map_safearea)}\nphone_request_marker=repeat\n"
         f"altscreen_hook_sha256={sha(altscreen)}\n"
         f"mirror_sha256={sha(mirror)}\nmirror_first_video_marker=1\nsport_video_layout=1\n"
+        "maneuver_backing=transparent_carplay_stock_restore\n"
         f"startup_logo={'private_random_pool' if private_pool else 'upstream'}\n"
         f"jar_sha256={jar_hash}\nstock_jar_sha256={stock_hash}\n"
         f"rgi_hook_sha256={native['hook_sha256']}\n"
@@ -74,6 +75,7 @@ def stage(build, sd, map_safearea=False):
         "checks": checks, "vehicle_validated": False,
         "cn_map_safearea": bool(map_safearea),
         "sport_video_layout": True, "mirror_sha256": sha(mirror),
+        "maneuver_backing": "transparent_carplay_stock_restore",
         "startup_logo": "private_random_pool" if private_pool else "upstream",
         "note": "Build/linkage checks passed; verify full functionality in the vehicle.",
     }, indent=2) + "\n")
@@ -81,7 +83,7 @@ def stage(build, sd, map_safearea=False):
         "本包关闭旧 CN safeArea 居中修正，继续使用上游布局选择器。")
     logo_note = ("本包包含私有随机开屏；重新连接会重新抽取，随机可能重复。" if private_pool else
         "本包使用项目自带 logo.rgba，不包含私有随机开屏包。")
-    (sd / "SD_CARD_README.txt").write_text(f"""CN P1002 / AltScreen + RGI / Sport 位置修复试验包
+    (sd / "SD_CARD_README.txt").write_text(f"""CN P1002 / AltScreen + RGI / 透明转向提示试验包
 
 目标固件：MHI2Q_CN_AUG22_P1002。已做本地构建和接口检查，尚未实车验证。
 基线：https://github.com/jamespan/mib2-carplay-rgi-altscreen
@@ -97,8 +99,10 @@ def stage(build, sd, map_safearea=False):
 本包使用新 RGI/图层/缩放实现，不叠加旧 CPZ2 或 v36 灰框隐藏试验。
 {geometry_note}
 更新会保留既有布局设置；首次安装选择 maneuver card on top 并重新连接手机。该选项此前已让本车高德大图居中。
-本次增加 Sport 小图的视频位置同步，回大图/断开时复位；开屏阶段保持原点。
-此项修复需实车验证，不能把本地测试结果当作实车通过。
+保留 Sport 小图的视频位置同步，回大图/断开时复位；开屏阶段保持原点。
+本次隐藏 CarPlay RGI 转向提示的银灰背景，保留箭头；大图弹窗和仪表内提示均适用。
+断开 CarPlay 后按原厂状态恢复背景。请实车检查布局切换、导航结束和断开后的显示。
+Sport 位置和透明背景需实车验证，不能把本地测试结果当作实车通过。
 手机请求标记修复和帧率设置不受 safeArea 开关影响。
 {logo_note}
 有线 RGI 的箭头、距离、时间和路名已有实车照片；无线 JYBOX-29 缺少 RGI 的原因待采集。
