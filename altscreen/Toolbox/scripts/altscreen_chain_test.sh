@@ -103,7 +103,7 @@ RUNTIME_OWNER=.mmi-cockpit-carplay-runtime-owner
 RUNTIME_PENDING="$RUNTIME_ROOT/state/transaction.pending"
 RUNTIME_PUBLISHED=0
 RUNTIME_HAD_CURRENT=0
-RUNTIME_SCRIPTS="altscreen_chain_test.sh altscreen_chain_test_known.sh altscreen_chain_test_universal.sh altscreen_persistent_diag.sh altscreen_adaptive_diag.sh altscreen_boot_diag.sh altscreen_live_diag.sh altscreen_preload.awk install_mmi_cockpit_carplay_rx.sh start_mmi_cockpit_carplay_test.sh start_mmi_cockpit_carplay_rx_test.sh force_start_mmi_cockpit_carplay_rx_test.sh stop_mmi_cockpit_carplay_test.sh status_mmi_cockpit_carplay_test.sh finish_mmi_cockpit_carplay_test.sh store_carplay_logs.sh carplay_verbose_off.sh rgi_companion.sh"
+RUNTIME_SCRIPTS="altscreen_chain_test.sh altscreen_chain_test_known.sh altscreen_chain_test_universal.sh altscreen_persistent_diag.sh altscreen_adaptive_diag.sh altscreen_boot_diag.sh altscreen_live_diag.sh altscreen_preload.awk install_mmi_cockpit_carplay_rx.sh start_mmi_cockpit_carplay_test.sh start_mmi_cockpit_carplay_rx_test.sh force_start_mmi_cockpit_carplay_rx_test.sh stop_mmi_cockpit_carplay_test.sh status_mmi_cockpit_carplay_test.sh finish_mmi_cockpit_carplay_test.sh store_carplay_logs.sh carplay_verbose_off.sh cn_upgrade_transaction.sh rgi_companion.sh"
 
 mount_app_rw(){ [ "$TESTING" = 1 ] || mount -uw /mnt/app; }
 mount_app_ro(){ [ "$TESTING" = 1 ] || mount -ur /mnt/app; }
@@ -121,6 +121,9 @@ mark_runtime_pending(){
 }
 
 clear_runtime_pending(){
+    # CN upgrades have an outer JAR + RGI transaction. It clears this only when
+    # every component and the previous activation choices have been committed.
+    [ "${ALTSCREEN_CN_UPGRADE:-0}" != 1 ] || return 0
     [ -f "$RUNTIME_ROOT/$RUNTIME_OWNER" ] || return 1
     mount_app_rw || return 1
     rm -f "$RUNTIME_PENDING" || { mount_app_ro >/dev/null 2>&1 || true; return 1; }

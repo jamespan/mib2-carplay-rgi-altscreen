@@ -55,3 +55,4 @@ Toolbox/scripts/util_info.sh
 Toolbox/scripts/util_mountsd.sh
 Toolbox/scripts/util_uninstall.sh
 metainfo2.txt
+Toolbox/scripts/cn_upgrade_transaction.sh

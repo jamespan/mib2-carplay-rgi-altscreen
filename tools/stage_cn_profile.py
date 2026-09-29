@@ -59,7 +59,7 @@ def stage(build, sd, map_safearea=False):
     (base / "CN_P1002_BUILD.txt").write_text(
         f"target_train={TRAIN}\n"
         "build_status=VERIFIED_PENDING_PACKAGE\n"
-        "migration_policy=restore_previous_then_reboot_then_install\n"
+        "migration_policy=upgrade_known_project_restore_legacy\n"
         "vehicle_validated=NO\n"
         f"cn_map_safearea={int(map_safearea)}\nphone_request_marker=repeat\n"
         f"altscreen_hook_sha256={sha(altscreen)}\n"
@@ -86,16 +86,17 @@ def stage(build, sd, map_safearea=False):
 目标固件：MHI2Q_CN_AUG22_P1002。已做本地构建和接口检查，尚未实车验证。
 基线：https://github.com/jamespan/mib2-carplay-rgi-altscreen
 
-从已安装的 CN 版本更新：
+从已安装的本项目 CN 版本更新：
 1. 保留 SD 的 MMI-Cockpit-Carplay/backup 和 logs。复制本包后执行 Update Toolbox，退出再进入绿菜单。
-2. 若当前已安装旧版，先 STORE LOGS + RESTORE，完整重启 MMI，确认原车地图恢复。
-3. 如果装过独立 NavActiveIgnore 补丁，先用原工具卸载并完整重启。
-4. MMI-Cockpit-Carplay -> INSTALL，PASS 后完整重启 MMI。
-5. START，PASS 后再完整重启 MMI。
+2. 已识别为本项目的 CN 版本可直接 INSTALL，不需要先 RESTORE；安装器先保存升级前状态，失败时回退。
+3. INSTALL 显示 PASS 后完整重启 MMI，使新的 JAR 和动态库生效。
+4. 首次安装或此前未启用时，执行 START，PASS 后再完整重启 MMI。
+旧独立方案、未知改装或独立 NavActiveIgnore 补丁不能当作本项目覆盖更新；根据安装器提示处理后重试。
+仅排查日志时使用独立 STORE LOGS，STORE LOGS + RESTORE 仍会卸载当前安装。
 
 本包使用新 RGI/图层/缩放实现，不叠加旧 CPZ2 或 v36 灰框隐藏试验。
 {geometry_note}
-安装后选择 maneuver card on top 并重新连接手机。该选项此前已让本车高德大图居中。
+更新会保留既有布局设置；首次安装选择 maneuver card on top 并重新连接手机。该选项此前已让本车高德大图居中。
 本次增加 Sport 小图的视频位置同步，回大图/断开时复位；开屏阶段保持原点。
 此项修复需实车验证，不能把本地测试结果当作实车通过。
 手机请求标记修复和帧率设置不受 safeArea 开关影响。

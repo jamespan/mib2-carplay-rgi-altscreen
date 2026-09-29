@@ -532,7 +532,7 @@ check_sources() {
     for s in altscreen_chain_test.sh altscreen_boot_diag.sh altscreen_live_diag.sh install_mmi_cockpit_carplay_rx.sh start_mmi_cockpit_carplay_test.sh \
              start_mmi_cockpit_carplay_rx_test.sh force_start_mmi_cockpit_carplay_rx_test.sh \
              stop_mmi_cockpit_carplay_test.sh status_mmi_cockpit_carplay_test.sh \
-             finish_mmi_cockpit_carplay_test.sh store_carplay_logs.sh carplay_verbose_off.sh; do
+             finish_mmi_cockpit_carplay_test.sh store_carplay_logs.sh carplay_verbose_off.sh cn_upgrade_transaction.sh; do
         src="$SD_SCRIPTS/$s"
         [ -f "$src" ] || { say "FAIL: $s is required for installation"; return 1; }
         case "$s" in
@@ -693,7 +693,7 @@ install_scripts_and_menu() {
     for s in altscreen_chain_test.sh altscreen_boot_diag.sh altscreen_live_diag.sh install_mmi_cockpit_carplay_rx.sh start_mmi_cockpit_carplay_test.sh \
              start_mmi_cockpit_carplay_rx_test.sh force_start_mmi_cockpit_carplay_rx_test.sh \
              stop_mmi_cockpit_carplay_test.sh status_mmi_cockpit_carplay_test.sh \
-             finish_mmi_cockpit_carplay_test.sh store_carplay_logs.sh carplay_verbose_off.sh altscreen_preload.awk; do
+             finish_mmi_cockpit_carplay_test.sh store_carplay_logs.sh carplay_verbose_off.sh cn_upgrade_transaction.sh altscreen_preload.awk; do
         [ -s "$sd_scripts/$s" ] || { say "FAIL: $s is missing/empty in the SD package"; return 1; }
     done
     esd="$VOLUME/Toolbox/GEM/mqb-carplayAltScreen.esd"

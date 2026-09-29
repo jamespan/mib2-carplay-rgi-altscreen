@@ -5,6 +5,13 @@
 
 DIODIR=${DIODIR:-/mnt/app/eso/bin/apps}
 H=${H:-/mnt/app/root/hooks}
+# CN's outer INSTALL transaction may span a power loss. Keep the stock CarPlay
+# process usable while withholding both custom hooks and the renderer supervisor.
+if [ -e "$H/../.cn-rgi-upgrade.pending" ]; then
+    unset LD_PRELOAD CARPLAY_PRELOAD_EXTRA
+    cd "$DIODIR" || exit 127
+    exec "$DIODIR/dio_manager" "$@"
+fi
 WLOG=${WLOG:-/tmp/carplay_wrapper.log}
 OWNER_FILE=${OWNER_FILE:-/tmp/carplay_supervisor.owner}
 DIO_PID=$$

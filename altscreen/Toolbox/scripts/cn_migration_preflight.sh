@@ -1,6 +1,6 @@
 #!/bin/sh
-# CN builds use a clean migration: restore the previous package, reboot, then
-# install this one. Never let two independent Java/zoom/context owners coexist.
+# Foreign CN installations require a clean migration. Identified releases of
+# this project can use the installer's complete previous-version transaction.
 # This check is read-only and runs before the AltScreen controller mutates files.
 set -u
 VOLUME=${ALTSCREEN_SD_VOLUME:-${ALTSCREEN_CHAIN_VOLUME:-}}
@@ -32,10 +32,15 @@ fi
 RUNTIME="$ROOT/mnt/app/root/carplay-altscreen"
 CFG="$ROOT/mnt/system/etc/eso/production/smartphone_integrator.json"
 [ -f "$CFG" ] || fail missing_smartphone_integrator_config
-# Even a same-build reinstall must use RESTORE first. The upstream rollback
-# returns to ORIGINAL, not to an arbitrary previous custom JAR/configuration.
+# Only the project-specific transaction can make the upstream ORIGINAL rollback
+# safe for an upgrade. Keep rejecting unknown JARs and legacy zoom owners.
 if [ -e "$JAR" ] || [ -L "$JAR" ] || [ -e "$RUNTIME" ] ||
    grep -Eq 'libcn_carplay_|libcarplay_hook[.]so|carplay_startup[.]sh' "$CFG"; then
+    UPGRADE="$VOLUME/Toolbox/scripts/cn_upgrade_transaction.sh"
+    if [ -f "$UPGRADE" ] && ALTSCREEN_SD_VOLUME="$VOLUME" /bin/sh "$UPGRADE" identify; then
+        echo 'CN_PREFLIGHT=PASS train=MHI2Q_CN_AUG22_P1002 inplace_upgrade=YES'
+        exit 0
+    fi
     echo 'ACTION=Use_the_installed_previous_package_RESTORE_ORIGINAL_then_full_MMI_reboot_before_INSTALL'
     fail previous_custom_installation_present
 fi

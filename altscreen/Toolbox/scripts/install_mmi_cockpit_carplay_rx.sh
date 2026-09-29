@@ -33,6 +33,7 @@ fi
 CONTROLLER="$VOLUME/Toolbox/scripts/altscreen_chain_test.sh"
 RGI_COMPANION="$VOLUME/Toolbox/scripts/rgi_companion.sh"
 CN_PREFLIGHT="$VOLUME/Toolbox/scripts/cn_migration_preflight.sh"
+CN_TRANSACTION="$VOLUME/Toolbox/scripts/cn_upgrade_transaction.sh"
 MIRROR_RELEASE="$VOLUME/Toolbox/carplay_alt_screen/mirror_display/release"
 MIRROR_INFO="$MIRROR_RELEASE/BUILD_INFO.txt"
 JAR_SOURCE="$VOLUME/Toolbox/carplay_alt_screen/hmi/carplay_hook-basevideo3.jar"
@@ -84,11 +85,53 @@ jar_valid "$JAR_SOURCE" || {
     exit 1
 }
 
-# Run before controller INSTALL: its rollback restores ORIGINAL, so a CN
-# migration must not start over the older custom JAR/zoom installation.
+# Recover an interrupted project upgrade before trying to identify its currently
+# mixed files. Recovery restores the previous complete installation and stops.
+CN_UPGRADE=0
+CN_LOCK=""
+if [ -f "$VOLUME/Toolbox/carplay_alt_screen/CN_P1002_BUILD.txt" ]; then
+    [ -f "$CN_TRANSACTION" ] || { echo 'FAIL: CN upgrade transaction helper missing'; exit 1; }
+    CN_LOCK="$DEVICE_ROOT/tmp/cn-rgi-install.lock"
+    if ! mkdir "$CN_LOCK" 2>/dev/null; then
+        lock_pid=$(cat "$CN_LOCK/pid" 2>/dev/null || true)
+        case "$lock_pid" in ''|*[!0-9]*) echo 'FAIL: CN install lock is invalid'; exit 1 ;; esac
+        kill -0 "$lock_pid" 2>/dev/null && { echo 'FAIL: CN install already running'; exit 1; }
+        rm -f "$CN_LOCK/pid" && rmdir "$CN_LOCK" && mkdir "$CN_LOCK" || exit 1
+    fi
+    printf '%s\n' "$$" > "$CN_LOCK/pid" || exit 1
+    cn_exit(){
+        cn_rc=$1
+        trap - 0 HUP INT TERM
+        if [ "$CN_UPGRADE" = 1 ]; then
+            if [ -e "$DEVICE_ROOT/mnt/app/root/.cn-rgi-upgrade.pending" ]; then
+                ALTSCREEN_SD_VOLUME="$VOLUME" /bin/sh "$CN_TRANSACTION" rollback ||
+                    echo 'FAIL: previous version recovery incomplete; retain SD and retry INSTALL'
+            fi
+            cn_rc=1
+        fi
+        rm -f "$CN_LOCK/pid"; rmdir "$CN_LOCK" 2>/dev/null || true
+        exit "$cn_rc"
+    }
+    trap 'cn_exit $?' 0
+    trap 'exit 1' HUP INT TERM
+    ALTSCREEN_SD_VOLUME="$VOLUME" /bin/sh "$CN_TRANSACTION" recover
+    recover_rc=$?
+    [ "$recover_rc" = 0 ] || exit 1
+fi
+
+# Run before controller INSTALL: unknown/legacy owners still require RESTORE.
 [ -f "$CN_PREFLIGHT" ] || { echo 'FAIL: CN migration preflight missing'; exit 1; }
 ALTSCREEN_SD_VOLUME="$VOLUME" /bin/sh "$CN_PREFLIGHT" || exit 1
 ALTSCREEN_SD_VOLUME="$VOLUME" /bin/sh "$RGI_COMPANION" preflight || exit 1
+if [ -n "$CN_LOCK" ] && ALTSCREEN_SD_VOLUME="$VOLUME" /bin/sh "$CN_TRANSACTION" identify >/dev/null 2>&1; then
+    ALTSCREEN_SD_VOLUME="$VOLUME" /bin/sh "$CONTROLLER" restore-preflight || exit 1
+    # Set the cleanup flag before begin: if publishing pending fails partway,
+    # the exit trap can still restore the completed journal.
+    CN_UPGRADE=1
+    ALTSCREEN_SD_VOLUME="$VOLUME" /bin/sh "$CN_TRANSACTION" begin || exit 1
+    ALTSCREEN_CN_UPGRADE=1
+    export ALTSCREEN_CN_UPGRADE
+fi
 
 echo "PACKAGE_MODE=CARPLAY_PRIVATE111_DIRECT_DISPLAY_V2"
 echo "NATIVE_SOURCE=private111_ScreenStreamProcessData h264_shm=/carplay111_h264"
@@ -107,6 +150,11 @@ CHAIN_RC=$?
 APP_RW=0
 TMP="$JAR_TARGET.basevideo3.tmp"
 rollback(){
+    if [ "$CN_UPGRADE" = 1 ]; then
+        [ "$APP_RW" != 1 ] || { mount_app_ro >/dev/null 2>&1 || true; APP_RW=0; }
+        if ALTSCREEN_SD_VOLUME="$VOLUME" /bin/sh "$CN_TRANSACTION" rollback; then CN_UPGRADE=0; fi
+        return
+    fi
     echo "WARN: Java80 deployment failed; removing deployed JAR and restoring native state"
     if [ "$APP_RW" != 1 ]; then
         if mount_app_rw >/dev/null 2>&1; then APP_RW=1; fi
@@ -147,5 +195,9 @@ echo "HMI_CONTRACT=RGI_SCREEN ctx81=98,101,102,3 ctx80=98,101,102,33 basevideo=3
 # Route guidance native half (hook + maneuver renderer + supervisor), wired into the
 # carplay child next to the AltScreen preload.
 ALTSCREEN_SD_VOLUME="$VOLUME" /bin/sh "$RGI_COMPANION" install || fail "RGI companion install failed"
+if [ "$CN_UPGRADE" = 1 ]; then
+    ALTSCREEN_SD_VOLUME="$VOLUME" /bin/sh "$CN_TRANSACTION" commit || fail "CN upgrade commit failed"
+    CN_UPGRADE=0
+fi
 echo "INSTALL=PASS integrated=AltScreen+H264Tap+DecoderTap+Displayable3+Java80+RGI reboot_required=YES"
 exit 0

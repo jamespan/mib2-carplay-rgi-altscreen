@@ -195,7 +195,8 @@ if [ -n "${SD:-}" ]; then
 fi
 echo "Done. Next on the car: Toolbox -> Update Toolbox."
 if [ "${CN_PROFILE:-0}" = 1 ]; then
-    echo "  Existing CN install: STORE LOGS + RESTORE, full reboot, then INSTALL, full reboot, START, full reboot."
+    echo "  Recognized project CN install: INSTALL directly, then full MMI reboot; existing startup/layout settings are retained."
+    echo "  First install: INSTALL, reboot, START, reboot. Legacy/unknown installs still require migration."
 else
     echo "  MMI-Cockpit-Carplay -> INSTALL, reboot, START, reboot."
 fi
