@@ -42,6 +42,30 @@ class CnOverlayTest(unittest.TestCase):
         self.assertEqual(len(result), len(self.stock))
         self.assertTrue({i for i, (a, b) in enumerate(zip(self.stock, result)) if a != b} <= allowed)
 
+    def test_safearea_off_only_changes_phone_marker_and_selected_fps(self):
+        for column in (1, 2):
+            baseline = fps.apply(self.stock, fps.TARGETS['libcarplay_altscreen.so']['patches'], column)
+            result = cn.patch(baseline, safe_area=False)
+            self.assertEqual(cn.sha(cn.normalized(result)), cn.CN_MARKER_SHA)
+            changed = {i for i, (a, b) in enumerate(zip(baseline, result)) if a != b}
+            self.assertTrue(changed <= set(range(0xDF88, 0xDF8C)))
+            self.assertEqual(result[cn.START:cn.END], self.stock[cn.START:cn.END])
+            self.assertEqual(result[0x26218:0x2621C], self.stock[0x26218:0x2621C])
+            self.assertEqual(result[0x2713C:0x27140], self.stock[0x2713C:0x27140])
+
+    def test_safearea_can_be_disabled_and_restored_exactly(self):
+        for column in (1, 2):
+            baseline = fps.apply(self.stock, fps.TARGETS['libcarplay_altscreen.so']['patches'], column)
+            enabled = cn.patch(baseline)
+            disabled = cn.patch(enabled, safe_area=False)
+            self.assertEqual(disabled, cn.patch(baseline, safe_area=False))
+            self.assertEqual(cn.patch(disabled, safe_area=False), disabled)
+            self.assertEqual(cn.patch(disabled), enabled)
+
+    def test_safearea_off_rejects_foreign_binary(self):
+        with self.assertRaises(ValueError):
+            cn.patch(self.stock[:200] + b'changed!' + self.stock[208:], safe_area=False)
+
 
 if __name__ == '__main__':
     unittest.main()

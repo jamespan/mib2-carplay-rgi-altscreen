@@ -10,8 +10,8 @@
 
 | 项目 | 本分支处理 |
 |---|---|
-| 16 张随机开屏 | 作为可选私有素材包迁入；每次真正的新 CarPlay 会话抽图，异常恢复沿用当前图 |
-| 高德导航自车右偏 | 重放实车验证过的 safeArea 和重复手机请求标记补丁；与上游 FPS 补丁可组合 |
+| 开屏图 | 当前使用项目自带 `logo.rgba`；16 张私有随机包保留为可选构建输入，默认不打包 |
+| 高德导航自车右偏 | 当前关闭旧 safeArea 修正，先验证上游布局选择器；保留重复手机请求标记修复，可用 `CN_MAP_SAFEAREA=1` 恢复居中补丁 |
 | Sport 图层 | 使用上游的新 Java 图层管理；不复制旧版 Sport 像素平移控制器，需重新验证小图位置 |
 | 导航道路、ETA、箭头和车道 | 使用上游 RGI 链路；手机/高德是否提供完整数据仍需实车采集 |
 | 灰底栏试验 | 不带入 v36 的功能支持撤回、路名清空和罗盘隐藏试验；新基线用底栏显示手机导航信息 |
@@ -33,12 +33,15 @@ STOCK_JAR=/private/path/CN_P1002-combined.jar \
 CN_STOCK_DIR=/private/path/CN-Port-Inputs \
 CN_LLVM_BIN=/path/to/llvm/bin \
 QNX_IMAGE=your-qnx65-c-and-cpp-image \
-PRIVATE_LOGO_DIR="$PWD/local_assets/mixed16" \
 bash scripts/build_cn.sh
 ```
 
 不设置 `PRIVATE_LOGO_DIR` 时沿用上游单张开屏；设置 `ALTSCREEN_FULL_FPS=0`
 可构建使用原始读帧/轮询节奏的对照版本。
+若以后恢复随机开屏，可另加 `PRIVATE_LOGO_DIR="$PWD/local_assets/mixed16"`。
+`CN_MAP_SAFEAREA` 默认 `0`，使用上游原始安全区；设置为 `1` 可重新启用
+此前验证过的中央 480 像素安全区。它是构建开关，GEM 的 `AltScreen default`
+只取消额外布局请求，不会切换这个补丁。两种版本都保留重复手机请求标记修复。
 `SKIP_BUILD=1 bash scripts/build_cn.sh` 可重用本地已有产物，但打包仍要求 CN
 Java/native 审核报告通过，且与实际文件 SHA256 一致。
 

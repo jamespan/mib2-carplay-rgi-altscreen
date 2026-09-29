@@ -8,6 +8,7 @@
 #   SD=/Volumes/SD32 STOCK_JAR=MU1329-base.jar ./scripts/build_sd.sh   # also sync onto the card
 #   ALTSCREEN_FULL_FPS=0 ./scripts/build_sd.sh                   # stock AltScreen video binaries (15 fps)
 #   CN_PROFILE=1 PRIVATE_LOGO_DIR=local_assets/mixed16 ...        # CN P1002 + private random splash pool
+#   CN_MAP_SAFEAREA=1 ...                                      # restore the optional CN centering patch (default off)
 #
 # Inputs:  altscreen/   the AltScreen SD tree (scripts, mirror sidecar, universal preload,
 #                       GEM menu, MIB2 Toolbox) with @CARPLAY_JAR_SIZE@/@CARPLAY_JAR_CKSUM@
@@ -31,6 +32,7 @@ RGI_DIR=Toolbox/carplay_alt_screen/rgi
 JAR_DEST=Toolbox/carplay_alt_screen/hmi/carplay_hook-basevideo3.jar
 PINNED_SCRIPTS="install_mmi_cockpit_carplay_rx.sh start_mmi_cockpit_carplay_rx_test.sh status_mmi_cockpit_carplay_test.sh"
 case "${CN_PROFILE:-0}" in 0|1) ;; *) echo 'ERROR: CN_PROFILE must be 0 or 1'; exit 2 ;; esac
+case "${CN_MAP_SAFEAREA:-0}" in 0|1) ;; *) echo 'ERROR: CN_MAP_SAFEAREA must be 0 or 1'; exit 2 ;; esac
 CN_PACKAGE_FINISHED=0
 cn_build_exit(){
     result=$?
@@ -96,9 +98,11 @@ else
 fi
 
 if [ "${CN_PROFILE:-0}" = 1 ]; then
-    # Reapply only the car-verified CN geometry/phone-request changes to the
-    # upstream universal hook. The patcher preserves the selected FPS mode.
-    python3 "$PROJECT_DIR/tools/patch_cn_altscreen.py" "$OUT/$ALTS_LIB" "$OUT/$ALTS_LIB"
+    # Keep repeated phone-request markers; geometry is separately switchable
+    # to compare the upstream layout selector without the old CN safeArea.
+    CN_SAFE_AREA=off
+    [ "${CN_MAP_SAFEAREA:-0}" != 1 ] || CN_SAFE_AREA=on
+    python3 "$PROJECT_DIR/tools/patch_cn_altscreen.py" --safe-area "$CN_SAFE_AREA" "$OUT/$ALTS_LIB" "$OUT/$ALTS_LIB"
 fi
 
 if [ -n "${PRIVATE_LOGO_DIR:-}" ]; then
@@ -136,7 +140,7 @@ if grep -rl '@CARPLAY_JAR_' "$OUT/Toolbox" >/dev/null; then
 fi
 
 if [ "${CN_PROFILE:-0}" = 1 ]; then
-    python3 "$PROJECT_DIR/tools/stage_cn_profile.py" --build "$PROJECT_DIR/build" --sd "$OUT"
+    python3 "$PROJECT_DIR/tools/stage_cn_profile.py" --build "$PROJECT_DIR/build" --sd "$OUT" --map-safearea "${CN_MAP_SAFEAREA:-0}"
 fi
 
 # Everything the head unit runs must parse as sh (QNX /bin/sh is pdksh).

@@ -71,8 +71,16 @@ vehicle-tested changes:
 * Keep emitting repeated phone-request markers, instead of returning early when
   the cached request flag is unchanged. This does not synthesize phone requests.
 
+For the upstream-layout comparison, CN packages now default to `CN_MAP_SAFEAREA=0`.
+The patcher's `--safe-area off` restores the full original safe-area code and both
+call sites, while retaining only the repeated-phone-request change and the selected
+FPS instruction. `CN_MAP_SAFEAREA=1` restores the previous geometry byte-for-byte.
+`CN_P1002_BUILD.txt` records the selected mode and exact AltScreen library hash.
+This switch does not change the JAR, RGI hook, renderer, or splash assets.
+
 After normalizing the one FPS instruction, the entire output SHA256 must equal
-the previously vehicle-tested v21 hook, not merely a few expected bytes.
+the pinned hash for its mode: the vehicle-tested v21 hook when on, or the upstream
+hook with only the phone-marker instruction changed when off.
 Unknown or partly modified inputs fail closed. Applying the tool twice is safe.
 
 Our 324-byte Thumb payload is supplied as assembly and text hex, not as an OEM
