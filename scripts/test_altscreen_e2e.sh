@@ -47,6 +47,14 @@ if [ "$SIMULATE_QNX_MKDIR" = 1 ]; then
     mv /bin/mkdir /bin/mkdir.real
     cat > /bin/mkdir <<EOF_QNX_MKDIR
 #!/bin/sh
+if [ "\${ALTSCREEN_TEST_FLAT_TMP:-0}" = 1 ]; then
+    for target do
+        case "\$target" in "\$ALTSCREEN_CHAIN_ROOT/tmp/"*)
+            echo "mkdir: unsupported flat QNX tmp namespace: \$target" >&2
+            exit 95 ;;
+        esac
+    done
+fi
 if [ "\$#" -eq 2 ] && [ "\$1" = -p ] && [ -d "\$2" ]; then
     echo "mkdir: File exists: \$2" >&2
     exit 1
@@ -79,7 +87,7 @@ fi
 F=/fixture/ORIGINAL/files; VOL=/tmp/vol; ROOT=/tmp/root
 mkdir -p $VOL; (cd /sd && tar -cf - .) | (cd $VOL && tar -xf -)
 mkdir -p $ROOT/eso/bin/apps $ROOT/eso/lib $ROOT/armle/usr/lib $ROOT/mnt/system/etc/eso/production \
-         $ROOT/mnt/system/etc/boot $ROOT/mnt/app/root $ROOT/mnt/app/eso/hmi/lsd/jars $ROOT/dev/shmem $ROOT/tmp
+         $ROOT/mnt/system/etc/boot $ROOT/mnt/app/root $ROOT/mnt/app/eso/hmi/lsd/jars $ROOT/dev/shmem $ROOT/tmp $ROOT/ramdisk
 cp $F/_eso_bin_apps_dio_manager $ROOT/eso/bin/apps/dio_manager
 cp $F/_eso_lib_libairplay.so $ROOT/eso/lib/libairplay.so
 cp $F/_armle_usr_lib_libNmeBaseClasses.so $ROOT/armle/usr/lib/libNmeBaseClasses.so
@@ -100,6 +108,7 @@ echo "Current train = $train" > $ROOT/dev/shmem/version.txt
 echo "FIXTURE_TRAIN=$train SIMULATE_QNX_MKDIR=$SIMULATE_QNX_MKDIR SIMULATE_QNX_CKSUM=$SIMULATE_QNX_CKSUM"
 cp $P/dio_manager.json /tmp/dio.orig; cp $P/smartphone_integrator.json /tmp/si.orig
 export ALTSCREEN_CHAIN_TESTING=1 ALTSCREEN_CHAIN_ROOT=$ROOT ALTSCREEN_CHAIN_VOLUME=$VOL
+export ALTSCREEN_TEST_FLAT_TMP=$SIMULATE_QNX_MKDIR
 cd $VOL/Toolbox/scripts
 fails=0
 need(){ grep -q "$2" /tmp/$1.log && echo "  ok   $1: $2" || { echo "  FAIL $1: missing $2"; fails=$((fails+1)); }; }
@@ -156,7 +165,11 @@ INITIAL_SD=/sd
 if [ -d /sd-prior ]; then
     INITIAL_SD=/sd-prior
     (cd "$INITIAL_SD" && tar -cf - .) | (cd "$VOL" && tar -xf -)
-    echo "UPGRADE_BASE=HISTORICAL_RELEASE"
+    # Seed the legacy release exactly as shipped, including its old /tmp
+    # directory-lock bug. Enable the real flat-namespace restriction again as
+    # soon as the current package replaces it for the actual upgrade tests.
+    export ALTSCREEN_TEST_FLAT_TMP=0
+    echo "UPGRADE_BASE=HISTORICAL_RELEASE legacy_tmp_directory_fixture=YES"
 else
     echo "UPGRADE_BASE=CURRENT_RELEASE (set PRIOR_SD_DIR for historical upgrade coverage)"
 fi
@@ -236,6 +249,14 @@ if [ -f /sd/Toolbox/carplay_alt_screen/CN_P1002_BUILD.txt ]; then
     cp "$ROOT/mnt/app/eso/hmi/lsd/jars/carplay_hook.jar" /tmp/prior-installed.jar
 
     (cd /sd && tar -cf - .) | (cd "$VOL" && tar -xf -)
+    export ALTSCREEN_TEST_FLAT_TMP=$SIMULATE_QNX_MKDIR
+    if [ "$ALTSCREEN_TEST_FLAT_TMP" = 1 ]; then
+        mkdir "$ROOT/tmp/directory-probe" >/tmp/tmp-mkdir-probe.log 2>&1
+        tmp_mkdir_rc=$?
+        [ "$tmp_mkdir_rc" = 95 ] && [ ! -e "$ROOT/tmp/directory-probe" ] \
+            && echo "  ok   QNX tmp fixture: subdirectory creation is unsupported" \
+            || { echo "  FAIL QNX tmp fixture: restriction not active"; fails=$((fails+1)); }
+    fi
     if [ "$SIMULATE_QNX_CKSUM" = 1 ]; then
         export ALTSCREEN_TEST_CKSUM_FAILURE=1
         txn checksum_failure identify 1
@@ -245,13 +266,14 @@ if [ -f /sd/Toolbox/carplay_alt_screen/CN_P1002_BUILD.txt ]; then
     fi
 
     # Reject another live INSTALL before it can open an upgrade transaction.
-    mkdir "$ROOT/tmp/cn-rgi-install.lock"
-    echo $$ > "$ROOT/tmp/cn-rgi-install.lock/pid"
+    printf "owner=CN_RGI_INSTALL_V1 pid=%s\n" "$$" > "$ROOT/ramdisk/cn-rgi-install.lock"
+    cp "$ROOT/ramdisk/cn-rgi-install.lock" /tmp/active-lock.before
     run concurrent_upgrade ./install_mmi_cockpit_carplay_rx.sh 1
     need concurrent_upgrade "CN install already running"
     snapshot /tmp/after-lock-refusal.json
     check_same /tmp/before-upgrade.json /tmp/after-lock-refusal.json "concurrent INSTALL rejected without changing installed files"
-    rm "$ROOT/tmp/cn-rgi-install.lock/pid"; rmdir "$ROOT/tmp/cn-rgi-install.lock"
+    check_same /tmp/active-lock.before "$ROOT/ramdisk/cn-rgi-install.lock" "concurrent INSTALL preserves the active flat lock"
+    rm "$ROOT/ramdisk/cn-rgi-install.lock"
 
     # Model FAT: stored files acquire 0777, but explicit original modes must
     # restore 0644 JAR/config and 0755 scripts. This starts with the true v1

@@ -62,6 +62,12 @@ Java/native 审核报告通过，且与实际文件 SHA256 一致。
 按屏幕提示重启后重试，不要把存在 pending 的半完成版本直接 START。
 这条路径还需实车验证，宿主模拟测试不能代替车机断电恢复验证。
 
+CN 安装锁使用原厂 `/ramdisk` 下的单个普通文件，避开 MMX `/tmp` 不能创建子目录、
+共享内存文件类型不同的限制。
+若旧包报 `CN install lock is invalid`，更新修复包后重新执行 **Update Toolbox**，
+退出再进入绿菜单，然后 INSTALL。新脚本保留实际创建错误；若提示已有异常或遗留锁，
+完整重启 MMI 后重试，不自动删除可能属于另一安装进程的锁。
+
 首次安装或此前未启用时仍需 **INSTALL → 重启 → START → 重启**。
 独立 STORE LOGS 只采集日志；STORE LOGS + RESTORE 仍是恢复原车操作。
 

@@ -89,16 +89,62 @@ jar_valid "$JAR_SOURCE" || {
 # mixed files. Recovery restores the previous complete installation and stops.
 CN_UPGRADE=0
 CN_LOCK=""
+CN_LOCK_HELD=0
 if [ -f "$VOLUME/Toolbox/carplay_alt_screen/CN_P1002_BUILD.txt" ]; then
     [ -f "$CN_TRANSACTION" ] || { echo 'FAIL: CN upgrade transaction helper missing'; exit 1; }
-    CN_LOCK="$DEVICE_ROOT/tmp/cn-rgi-install.lock"
-    if ! mkdir "$CN_LOCK" 2>/dev/null; then
-        lock_pid=$(cat "$CN_LOCK/pid" 2>/dev/null || true)
-        case "$lock_pid" in ''|*[!0-9]*) echo 'FAIL: CN install lock is invalid'; exit 1 ;; esac
-        kill -0 "$lock_pid" 2>/dev/null && { echo 'FAIL: CN install already running'; exit 1; }
-        rm -f "$CN_LOCK/pid" && rmdir "$CN_LOCK" && mkdir "$CN_LOCK" || exit 1
+    # Stock CN startup creates /ramdisk as qnx4. /tmp is /dev/shmem, whose
+    # special files are outside the shell's regular-file noclobber guarantee.
+    CN_LOCK="$DEVICE_ROOT/ramdisk/cn-rgi-install.lock"
+    CN_LEGACY_LOCK="$DEVICE_ROOT/tmp/cn-rgi-install.lock"
+    if [ -e "$CN_LEGACY_LOCK" ] || [ -L "$CN_LEGACY_LOCK" ]; then
+        echo "FAIL: legacy CN install lock exists; preserved path=$CN_LEGACY_LOCK"
+        echo 'ACTION=Full_MMI_reboot_then_retry_INSTALL'
+        exit 1
     fi
-    printf '%s\n' "$$" > "$CN_LOCK/pid" || exit 1
+    [ ! -L "$DEVICE_ROOT/ramdisk" ] || { echo 'FAIL: CN install lock parent is a symlink'; exit 1; }
+    CN_LOCK_ID="owner=CN_RGI_INSTALL_V1 pid=$$"
+    CN_LOCK_BYTES=$((${#CN_LOCK_ID}+1))
+    cn_lock_exists(){ [ -e "$CN_LOCK" ] || [ -L "$CN_LOCK" ]; }
+    cn_lock_read(){
+        CN_LOCK_TEXT=""
+        CN_LOCK_READ_BYTES=""
+        [ ! -L "$CN_LOCK" ] && [ -f "$CN_LOCK" ] || return 1
+        CN_LOCK_READ_BYTES=$(wc -c < "$CN_LOCK" 2>/dev/null) || return 1
+        set -- $CN_LOCK_READ_BYTES
+        [ "$#" -eq 1 ] || return 1
+        CN_LOCK_READ_BYTES=$1
+        case "$CN_LOCK_READ_BYTES" in ''|*[!0-9]*) return 1 ;; esac
+        [ "${#CN_LOCK_READ_BYTES}" -le 3 ] && [ "$CN_LOCK_READ_BYTES" -le 128 ] || return 1
+        CN_LOCK_TEXT=$(cat "$CN_LOCK" 2>/dev/null) || return 1
+        # The byte count also rejects stripped NULs, extra trailing newlines,
+        # and an incomplete record; command substitution alone cannot do that.
+        [ "$CN_LOCK_READ_BYTES" = "$((${#CN_LOCK_TEXT}+1))" ]
+    }
+    cn_lock_refuse(){
+        cn_lock_read || true
+        # Another process may have created its lock but not written its owner yet.
+        if [ "$CN_LOCK_READ_BYTES" = 0 ]; then sleep 1; fi
+        if cn_lock_read; then
+            case "$CN_LOCK_TEXT" in
+                'owner=CN_RGI_INSTALL_V1 pid='*)
+                    lock_pid=${CN_LOCK_TEXT#'owner=CN_RGI_INSTALL_V1 pid='}
+                    case "$lock_pid" in
+                        ''|*[!0-9]*|0|1) ;;
+                        *)
+                            if kill -0 "$lock_pid" 2>/dev/null; then
+                                echo "FAIL: CN install already running pid=$lock_pid"
+                                echo "CN_INSTALL_LOCK=PRESERVED path=$CN_LOCK"
+                                return 1
+                            fi
+                            ;;
+                    esac
+                    ;;
+            esac
+        fi
+        echo "FAIL: CN install lock exists with an unverified or inactive owner; preserved path=$CN_LOCK"
+        echo 'ACTION=Full_MMI_reboot_then_retry_INSTALL'
+        return 1
+    }
     cn_exit(){
         cn_rc=$1
         trap - 0 HUP INT TERM
@@ -109,11 +155,42 @@ if [ -f "$VOLUME/Toolbox/carplay_alt_screen/CN_P1002_BUILD.txt" ]; then
             fi
             cn_rc=1
         fi
-        rm -f "$CN_LOCK/pid"; rmdir "$CN_LOCK" 2>/dev/null || true
+        if [ "$CN_LOCK_HELD" = 1 ]; then
+            if cn_lock_read && [ "$CN_LOCK_TEXT" = "$CN_LOCK_ID" ] &&
+               [ "$CN_LOCK_READ_BYTES" = "$CN_LOCK_BYTES" ]; then
+                rm -f "$CN_LOCK" || { echo 'WARN: CN install lock release failed'; cn_rc=1; }
+            else
+                echo "WARN: CN install lock ownership changed; preserved path=$CN_LOCK"
+                cn_rc=1
+            fi
+        fi
         exit "$cn_rc"
     }
     trap 'cn_exit $?' 0
     trap 'exit 1' HUP INT TERM
+    if cn_lock_exists; then cn_lock_refuse; exit 1; fi
+    # Noclobber supplies exclusive creation on the ordinary RAM filesystem.
+    # Do not create the parent or fall back to the special /tmp namespace.
+    if CN_LOCK_ERROR=$({
+        trap - 0 HUP INT TERM
+        umask 077
+        set -C
+        printf '%s\n' "$CN_LOCK_ID" > "$CN_LOCK"
+    } 2>&1); then
+        if cn_lock_read && [ "$CN_LOCK_TEXT" = "$CN_LOCK_ID" ] &&
+           [ "$CN_LOCK_READ_BYTES" = "$CN_LOCK_BYTES" ]; then
+            CN_LOCK_HELD=1
+        else
+            echo "FAIL: CN install lock owner verification failed; preserved path=$CN_LOCK"
+            echo 'ACTION=Full_MMI_reboot_then_retry_INSTALL'
+            exit 1
+        fi
+    else
+        [ -z "$CN_LOCK_ERROR" ] || printf '%s\n' "$CN_LOCK_ERROR" >&2
+        if cn_lock_exists; then cn_lock_refuse
+        else echo "FAIL: CN install lock could not be created path=$CN_LOCK"; fi
+        exit 1
+    fi
     ALTSCREEN_SD_VOLUME="$VOLUME" /bin/sh "$CN_TRANSACTION" recover
     recover_rc=$?
     [ "$recover_rc" = 0 ] || exit 1

@@ -60,6 +60,7 @@ def stage(build, sd, map_safearea=False):
         f"target_train={TRAIN}\n"
         "build_status=VERIFIED_PENDING_PACKAGE\n"
         "migration_policy=upgrade_known_project_restore_legacy\n"
+        "cn_install_lock=ramdisk_file_v1\n"
         "vehicle_validated=NO\n"
         f"cn_map_safearea={int(map_safearea)}\nphone_request_marker=repeat\n"
         f"altscreen_hook_sha256={sha(altscreen)}\n"
@@ -73,6 +74,7 @@ def stage(build, sd, map_safearea=False):
     (base / "CN_BUILD_CHECKS.json").write_text(json.dumps({
         "firmware": TRAIN, "build_id": java["build_id"],
         "checks": checks, "vehicle_validated": False,
+        "cn_install_lock": "ramdisk_file_v1",
         "cn_map_safearea": bool(map_safearea),
         "sport_video_layout": True, "mirror_sha256": sha(mirror),
         "maneuver_backing": "transparent_carplay_stock_restore",
@@ -95,6 +97,8 @@ def stage(build, sd, map_safearea=False):
 4. 首次安装或此前未启用时，执行 START，PASS 后再完整重启 MMI。
 旧独立方案、未知改装或独立 NavActiveIgnore 补丁不能当作本项目覆盖更新；根据安装器提示处理后重试。
 仅排查日志时使用独立 STORE LOGS，STORE LOGS + RESTORE 仍会卸载当前安装。
+本包修复 CN 安装锁无法在 /tmp 创建子目录导致的 INSTALL 失败；复制后必须重新 Update Toolbox。
+若新脚本提示已有异常或遗留锁，完整重启 MMI 后重试，保留屏幕上的具体错误。
 
 本包使用新 RGI/图层/缩放实现，不叠加旧 CPZ2 或 v36 灰框隐藏试验。
 {geometry_note}
